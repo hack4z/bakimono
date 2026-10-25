@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@keyframes product-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes product-drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.product-drawer-panel {
+  animation: product-drawer-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.product-drawer-backdrop {
+  animation: product-drawer-backdrop-in 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-drawer-panel,
+  .product-drawer-backdrop {
+    animation: none;
+  }
+}
+
+@theme {
+  --color-dust-grey-100: #312e24;
+  --color-dust-grey-200: #615b48;
+  --color-dust-grey-300: #92896c;
+  --color-dust-grey-400: #b6b09c;
+  --color-dust-grey-500: #dad7cd;
+  --color-dust-grey-600: #e2dfd7;
+  --color-dust-grey-700: #e9e7e1;
+  --color-dust-grey-800: #f0efeb;
+  --color-dust-grey-900: #f8f7f5;
+
+  --color-dry-sage-100: #212619;
+  --color-dry-sage-200: #434c33;
+  --color-dry-sage-300: #64724c;
+  --color-dry-sage-400: #859865;
+  --color-dry-sage-500: #a3b18a;
+  --color-dry-sage-600: #b6c1a2;
+  --color-dry-sage-700: #c8d0b9;
+  --color-dry-sage-800: #dae0d0;
+  --color-dry-sage-900: #edefe8;
+
+  --color-fern-100: #111911;
+  --color-fern-200: #233323;
+  --color-fern-300: #344c34;
+  --color-fern-400: #466645;
+  --color-fern-500: #588157;
+  --color-fern-600: #739f72;
+  --color-fern-700: #96b795;
+  --color-fern-800: #b9cfb9;
+  --color-fern-900: #dce7dc;
+
+  --color-hunter-green-100: #0c120d;
+  --color-hunter-green-200: #172419;
+  --color-hunter-green-300: #233626;
+  --color-hunter-green-400: #2e4833;
+  --color-hunter-green-500: #3a5a40;
+  --color-hunter-green-600: #56865f;
+  --color-hunter-green-700: #7aaa83;
+  --color-hunter-green-800: #a7c7ac;
+  --color-hunter-green-900: #d3e3d6;
+
+  --color-pine-teal-100: #0a0f0d;
+  --color-pine-teal-200: #141f1a;
+  --color-pine-teal-300: #1f2e26;
+  --color-pine-teal-400: #293d33;
+  --color-pine-teal-500: #344e41;
+  --color-pine-teal-600: #527a66;
+  --color-pine-teal-700: #75a38c;
+  --color-pine-teal-800: #a3c2b3;
+  --color-pine-teal-900: #d1e0d9;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --color-dust-grey-100: #f8f7f5;
+  --color-dust-grey-200: #e2dfd7;
+  --color-dust-grey-300: #b6b09c;
+  --color-dust-grey-400: #92896c;
+  --color-dust-grey-500: #615b48;
+  --color-dust-grey-600: #434c33;
+  --color-dust-grey-700: #312e24;
+  --color-dust-grey-800: #212619;
+  --color-dust-grey-900: #111911;
+
+  --color-dry-sage-100: #edefe8;
+  --color-dry-sage-200: #dae0d0;
+  --color-dry-sage-300: #c8d0b9;
+  --color-dry-sage-400: #b6c1a2;
+  --color-dry-sage-500: #a3b18a;
+  --color-dry-sage-600: #859865;
+  --color-dry-sage-700: #64724c;
+  --color-dry-sage-800: #434c33;
+  --color-dry-sage-900: #212619;
+
+  --color-fern-100: #dce7dc;
+  --color-fern-200: #b9cfb9;
+  --color-fern-300: #96b795;
+  --color-fern-400: #739f72;
+  --color-fern-500: #588157;
+  --color-fern-600: #466645;
+  --color-fern-700: #344c34;
+  --color-fern-800: #233323;
+  --color-fern-900: #111911;
+
+  --color-hunter-green-100: #d3e3d6;
+  --color-hunter-green-200: #a7c7ac;
+  --color-hunter-green-300: #7aaa83;
+  --color-hunter-green-400: #56865f;
+  --color-hunter-green-500: #3a5a40;
+  --color-hunter-green-600: #2e4833;
+  --color-hunter-green-700: #233626;
+  --color-hunter-green-800: #172419;
+  --color-hunter-green-900: #0c120d;
+
+  --color-pine-teal-100: #d1e0d9;
+  --color-pine-teal-200: #a3c2b3;
+  --color-pine-teal-300: #75a38c;
+  --color-pine-teal-400: #527a66;
+  --color-pine-teal-500: #344e41;
+  --color-pine-teal-600: #293d33;
+  --color-pine-teal-700: #1f2e26;
+  --color-pine-teal-800: #141f1a;
+  --color-pine-teal-900: #0a0f0d;
+}
+
+.dark [class~="bg-white"],
+.dark [class~="bg-white/95"],
+.dark [class~="bg-white/90"],
+.dark [class~="bg-white/70"],
+.dark [class~="bg-white/60"] {
+  background-color: var(--color-dust-grey-800);
+}
+
+.dark [class~="text-hunter-green-500"] {
+  color: var(--color-hunter-green-300);
+}
+
+.dark [class~="text-fern-500"] {
+  color: var(--color-fern-300);
+}
+
+.dark [class~="text-pine-teal-500"] {
+  color: var(--color-pine-teal-300);
+}
