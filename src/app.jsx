@@ -5,8 +5,16 @@ import BookingsPage from "~/components/BookingsPage";
 import CheckoutPage from "~/components/CheckoutPage";
 import DashboardPage from "~/components/DashboardPage";
 import ExplorePage from "~/components/ExplorePage";
+import HomePage from "~/components/HomePage";
 import LoginPage from "~/components/LoginPage";
 import Nav from "~/components/Nav";
+import ProviderPage from "~/components/ProviderPage";
+import ProviderNavigation from "~/components/ProviderNavigation";
+import ProviderGalleryPage from "~/components/ProviderGalleryPage";
+import ProviderPaymentPage from "~/components/ProviderPaymentPage";
+import ProviderSignupPage from "~/components/ProviderSignupPage";
+import ProviderSocialLinksPage from "~/components/ProviderSocialLinksPage";
+import ProviderVerificationPage from "~/components/ProviderVerificationPage";
 import SignupPage from "~/components/SignupPage";
 import SettingsPage, { SettingsInfoPage } from "~/components/SettingsPage";
 import "./app.css";
@@ -16,13 +24,19 @@ export default function App() {
     <Router
       root={props => <AppShell>{props.children}</AppShell>}
     >
-      <Route path="/" component={LoginPage} />
+      <Route path="/" component={HomePage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/explore" component={ExplorePage} />
       <Route path="/bookings" component={BookingsPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/provider" component={ProviderPage} />
+      <Route path="/provider/signup" component={ProviderSignupPage} />
+      <Route path="/provider/signup/social" component={ProviderSocialLinksPage} />
+      <Route path="/provider/signup/gallery" component={ProviderGalleryPage} />
+      <Route path="/provider/signup/verification" component={ProviderVerificationPage} />
+      <Route path="/provider/signup/payment" component={ProviderPaymentPage} />
       <Route path="/terms-and-conditions" component={SettingsInfoPage} />
       <Route path="/privacy-policy" component={SettingsInfoPage} />
       <Route path="/cookie-policy" component={SettingsInfoPage} />
@@ -35,17 +49,23 @@ export default function App() {
 
 function AppShell(props) {
   const location = useLocation();
-  const isPublicPage = () => ["/", "/login", "/signup"].includes(location.pathname);
+  const isProviderSubPage = () => location.pathname.startsWith("/provider/");
+  const usesShowcaseNavigation = () =>
+    ["/", "/login", "/signup", "/provider"].includes(location.pathname);
+  const hasAppNavigation = () => !usesShowcaseNavigation();
 
   return (
     <>
-      <Show when={isPublicPage()}>
+      <Show when={usesShowcaseNavigation()}>
         <Nav />
       </Show>
-      <Show when={!isPublicPage()}>
+      <Show when={!usesShowcaseNavigation() && !isProviderSubPage()}>
         <AppNavigation />
       </Show>
-      <div class={isPublicPage() ? "" : "pb-20 lg:pb-0 lg:pl-[88px]"}>
+      <Show when={isProviderSubPage()}>
+        <ProviderNavigation />
+      </Show>
+      <div class={hasAppNavigation() ? "pb-20 lg:pb-0 lg:pl-[88px]" : ""}>
         <Suspense>{props.children}</Suspense>
       </div>
     </>

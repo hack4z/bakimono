@@ -28,18 +28,18 @@ export default function Nav() {
         </A>
 
         <div class="hidden items-center gap-9 md:flex">
-          <a href="#stays" class="text-sm text-dust-grey-200 transition hover:text-hunter-green-500">
+          <A href="/explore" class="text-sm text-dust-grey-200 transition hover:text-hunter-green-500">
             Stays
-          </a>
-          <a href="#dining" class="text-sm text-dust-grey-200 transition hover:text-hunter-green-500">
+          </A>
+          <A href="/explore" class="text-sm text-dust-grey-200 transition hover:text-hunter-green-500">
             Dining
-          </a>
-          <a href="#experiences" class="text-sm text-dust-grey-200 transition hover:text-hunter-green-500">
+          </A>
+          <A href="/explore" class="text-sm text-dust-grey-200 transition hover:text-hunter-green-500">
             Experiences
-          </a>
-          <a href="#food" class="text-sm text-dust-grey-200 transition hover:text-hunter-green-500">
-            Food delivery
-          </a>
+          </A>
+          <A href="/provider" class="text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500">
+            For providers
+          </A>
         </div>
 
         <div class="flex items-center gap-3">
@@ -64,18 +64,18 @@ export default function Nav() {
               <Menu size={19} aria-hidden="true" />
             </summary>
             <div class="absolute right-0 top-12 z-10 flex w-48 flex-col gap-1 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 p-2 shadow-xl">
-              <a href="#stays" class="rounded-xl px-3 py-2.5 text-sm text-dust-grey-200 hover:bg-dust-grey-800">
+              <A href="/explore" class="rounded-xl px-3 py-2.5 text-sm text-dust-grey-200 hover:bg-dust-grey-800">
                 Stays
-              </a>
-              <a href="#dining" class="rounded-xl px-3 py-2.5 text-sm text-dust-grey-200 hover:bg-dust-grey-800">
+              </A>
+              <A href="/explore" class="rounded-xl px-3 py-2.5 text-sm text-dust-grey-200 hover:bg-dust-grey-800">
                 Dining
-              </a>
-              <a href="#experiences" class="rounded-xl px-3 py-2.5 text-sm text-dust-grey-200 hover:bg-dust-grey-800">
+              </A>
+              <A href="/explore" class="rounded-xl px-3 py-2.5 text-sm text-dust-grey-200 hover:bg-dust-grey-800">
                 Experiences
-              </a>
-              <a href="#food" class="rounded-xl px-3 py-2.5 text-sm text-dust-grey-200 hover:bg-dust-grey-800">
-                Food delivery
-              </a>
+              </A>
+              <A href="/provider" class="rounded-xl px-3 py-2.5 text-sm font-semibold text-hunter-green-500 hover:bg-dust-grey-800">
+                For providers
+              </A>
             </div>
           </details>
         </div>

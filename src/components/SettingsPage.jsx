@@ -1,6 +1,6 @@
 import { A, useLocation } from "@solidjs/router";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { ArrowRight, CalendarDays, CircleHelp, Cookie, FileText, MapPin, Moon, Package, Pencil, Shield, Sun, X } from "lucide-solid";
+import { ArrowRight, CalendarDays, CircleHelp, Cookie, FileText, MapPin, Moon, Package, Pencil, Phone, Shield, Sun, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
 import ThemeToggle from "~/components/ThemeToggle";
 import { supabase } from "~/utils/supabase";
@@ -193,7 +193,7 @@ export default function SettingsPage() {
       if (data.user) {
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("created_at, updated_at, user_id, orders, bookings, image, name, birthday, address, city")
+          .select("created_at, updated_at, user_id, orders, bookings, image, name, birthday, address, city, phone")
           .eq("user_id", data.user.id)
           .maybeSingle();
 
@@ -287,7 +287,7 @@ export default function SettingsPage() {
         .from("profiles")
         .update(updates)
         .eq("user_id", user().id)
-        .select("created_at, updated_at, user_id, orders, bookings, image, name, birthday, address, city")
+        .select("created_at, updated_at, user_id, orders, bookings, image, name, birthday, address, city, phone")
         .single();
 
       if (error) throw error;
@@ -324,7 +324,7 @@ export default function SettingsPage() {
               openProfileEditor();
             }
           }}
-          class="relative overflow-hidden rounded-[28px] border border-dry-sage-700 bg-gradient-to-br from-hunter-green-500 via-fern-500 to-pine-teal-500 p-5 text-white shadow-sm sm:p-8"
+          class="relative overflow-hidden rounded-[28px] border border-dry-sage-700 bg-gradient-to-br from-hunter-green-500 via-fern-500 to-pine-teal-500 p-4 text-white shadow-sm sm:p-6"
           classList={{
             "cursor-pointer transition hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500":
               Boolean(profile()),
@@ -332,8 +332,8 @@ export default function SettingsPage() {
         >
           <div class="absolute -right-10 -top-16 size-56 rounded-full border border-white/15" />
           <div class="absolute -bottom-28 right-24 size-64 rounded-full border border-white/10" />
-          <div class="relative flex flex-wrap items-center gap-4 sm:gap-5">
-            <div class="flex size-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[24px] border border-white/30 bg-white/15 text-2xl font-semibold shadow-sm backdrop-blur">
+          <div class="relative flex flex-wrap items-center gap-3">
+            <div class="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[20px] border border-white/30 bg-white/15 text-2xl font-semibold shadow-sm backdrop-blur">
               <Show
                 when={avatarUrl()}
                 fallback={<span>{initials()}</span>}
@@ -342,8 +342,12 @@ export default function SettingsPage() {
               </Show>
             </div>
             <div class="min-w-0 flex-1">
-              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-white/75">
+              <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/75">
                 Your profile
+                <Show when={!isLoading() && profile()}>
+                  <Pencil size={11} aria-hidden="true" />
+                  <span class="normal-case tracking-normal">Edit</span>
+                </Show>
               </p>
               <Show when={!isLoading()} fallback={<p class="mt-1 text-sm text-white/80">Loading account…</p>}>
                 <h2 class="mt-1 truncate font-serif text-2xl sm:text-3xl">{displayName()}</h2>
@@ -366,21 +370,15 @@ export default function SettingsPage() {
             </Show>
           </div>
           <Show when={!isLoading() && profile()}>
-            <div class="relative mt-4 flex items-center justify-end gap-1 text-xs font-semibold text-white/80">
-              <Pencil size={13} aria-hidden="true" />
-              Click to edit profile
-            </div>
-          </Show>
-          <Show when={!isLoading() && profile()}>
-            <div class="relative mt-6 grid gap-3 border-t border-white/20 pt-5 sm:grid-cols-2">
-              <div class="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3">
+            <div class="relative mt-4 grid gap-2 border-t border-white/20 pt-4 sm:grid-cols-2">
+              <div class="flex min-h-14 items-center gap-3 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
                 <Package size={17} class="shrink-0 text-white/80" aria-hidden="true" />
                 <div>
                   <p class="text-[11px] font-medium uppercase tracking-wide text-white/70">Orders</p>
                   <p class="text-lg font-semibold">{orderCount()}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3">
+              <div class="flex min-h-14 items-center gap-3 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
                 <CalendarDays size={17} class="shrink-0 text-white/80" aria-hidden="true" />
                 <div>
                   <p class="text-[11px] font-medium uppercase tracking-wide text-white/70">Bookings</p>
@@ -388,32 +386,38 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-            <dl class="relative mt-4 grid gap-x-6 gap-y-3 border-t border-white/20 pt-4 text-sm sm:grid-cols-2">
-              <div>
-                <dt class="text-xs text-white/70">Birthday</dt>
-                <dd class="mt-0.5 font-medium">{formatProfileDate(profile().birthday, true)}</dd>
+            <dl class="relative mt-3 grid grid-cols-1 gap-2 border-t border-white/20 pt-3 text-sm sm:grid-cols-2">
+              <div class="min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
+                <dt class="truncate text-xs leading-4 text-white/70">Birthday</dt>
+                <dd class="mt-1 truncate font-medium leading-5">{formatProfileDate(profile().birthday, true)}</dd>
               </div>
-              <div>
-                <dt class="flex items-center gap-1 text-xs text-white/70">
+              <div class="min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
+                <dt class="flex items-center gap-1 text-xs leading-4 text-white/70">
+                  <Phone size={12} aria-hidden="true" /> Phone
+                </dt>
+                <dd class="mt-1 truncate font-medium leading-5" title={profile().phone || "Not provided"}>{profile().phone || "Not provided"}</dd>
+              </div>
+              <div class="min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
+                <dt class="flex items-center gap-1 text-xs leading-4 text-white/70">
                   <MapPin size={12} aria-hidden="true" /> City
                 </dt>
-                <dd class="mt-0.5 font-medium">{profile().city || "Not provided"}</dd>
+                <dd class="mt-1 truncate font-medium leading-5" title={profile().city || "Not provided"}>{profile().city || "Not provided"}</dd>
               </div>
-              <div class="sm:col-span-2">
-                <dt class="text-xs text-white/70">Address</dt>
-                <dd class="mt-0.5 font-medium">{profile().address || "Not provided"}</dd>
+              <div class="min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
+                <dt class="truncate text-xs leading-4 text-white/70">Address</dt>
+                <dd class="mt-1 truncate font-medium leading-5" title={profile().address || "Not provided"}>{profile().address || "Not provided"}</dd>
               </div>
-              <div>
-                <dt class="text-xs text-white/70">Profile ID</dt>
-                <dd class="mt-0.5 break-all font-medium">{profile().user_id}</dd>
+              <div class="min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
+                <dt class="truncate text-xs leading-4 text-white/70">Profile ID</dt>
+                <dd class="mt-1 truncate font-medium leading-5" title={profile().user_id}>{profile().user_id}</dd>
               </div>
-              <div>
-                <dt class="text-xs text-white/70">Member since</dt>
-                <dd class="mt-0.5 font-medium">{formatProfileDate(profile().created_at)}</dd>
+              <div class="min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
+                <dt class="truncate text-xs leading-4 text-white/70">Member since</dt>
+                <dd class="mt-1 truncate font-medium leading-5">{formatProfileDate(profile().created_at)}</dd>
               </div>
-              <div>
-                <dt class="text-xs text-white/70">Last profile update</dt>
-                <dd class="mt-0.5 font-medium">{formatProfileDate(profile().updated_at)}</dd>
+              <div class="min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
+                <dt class="truncate text-xs leading-4 text-white/70">Last profile update</dt>
+                <dd class="mt-1 truncate font-medium leading-5">{formatProfileDate(profile().updated_at)}</dd>
               </div>
             </dl>
           </Show>
@@ -441,7 +445,7 @@ export default function SettingsPage() {
               class="product-drawer-panel absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-dust-grey-600 bg-dust-grey-900 shadow-2xl"
             >
               <div class="flex items-start justify-between gap-4 border-b border-dust-grey-600 p-5 sm:p-7">
-                <div>
+                <div class="rounded-xl border border-white/15 bg-white/10 px-3 py-2">
                   <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-500">
                     Your account
                   </p>
