@@ -27,6 +27,7 @@ export default function ProviderGalleryPage() {
   const [draftAvailable, setDraftAvailable] = createSignal(false);
   const [isProcessing, setIsProcessing] = createSignal(false);
   const [isSaved, setIsSaved] = createSignal(false);
+  const [isSkippedForDevelopment, setIsSkippedForDevelopment] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
 
   onMount(() => {
@@ -93,7 +94,7 @@ export default function ProviderGalleryPage() {
     setErrorMessage("");
   }
 
-  function persistGallery() {
+  function persistGallery(skipped = false) {
     setErrorMessage("");
     try {
       const savedDraft = window.sessionStorage.getItem(draftKey);
@@ -108,8 +109,10 @@ export default function ProviderGalleryPage() {
         JSON.stringify({
           ...draft,
           gallery: photos(),
+          ...(skipped ? { developmentBypass: true } : {}),
         }),
       );
+      setIsSkippedForDevelopment(skipped);
       setIsSaved(true);
     } catch (error) {
       setErrorMessage(
@@ -123,6 +126,15 @@ export default function ProviderGalleryPage() {
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-4xl">
+        <Show when={import.meta.env.DEV}>
+          <button
+            type="button"
+            onClick={() => persistGallery(true)}
+            class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+          >
+            Development only: skip this step <ArrowRight size={14} aria-hidden="true" />
+          </button>
+        </Show>
         <A
           href="/provider/signup/social"
           class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500"
@@ -185,10 +197,12 @@ export default function ProviderGalleryPage() {
                   <Check size={22} aria-hidden="true" />
                 </span>
                 <h2 class="mt-4 font-serif text-2xl tracking-[-0.035em]">
-                  Gallery saved for this session.
+                  {isSkippedForDevelopment() ? "Gallery step skipped for development." : "Gallery saved for this session."}
                 </h2>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
-                  Your provider draft now has {photos().length} gallery photo{photos().length === 1 ? "" : "s"}.
+                  {isSkippedForDevelopment()
+                    ? "The gallery was bypassed without requiring photos."
+                    : `Your provider draft now has ${photos().length} gallery photo${photos().length === 1 ? "" : "s"}.`}
                 </p>
                 <div class="mt-5 flex flex-wrap gap-5">
                   <button

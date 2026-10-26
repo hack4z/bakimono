@@ -105,6 +105,7 @@ export default function ProviderVerificationPage() {
   const [verification, setVerification] = createSignal({ ...emptyVerification });
   const [draftAvailable, setDraftAvailable] = createSignal(false);
   const [isSaved, setIsSaved] = createSignal(false);
+  const [isSkippedForDevelopment, setIsSkippedForDevelopment] = createSignal(false);
   const [isUploading, setIsUploading] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
 
@@ -281,17 +282,19 @@ export default function ProviderVerificationPage() {
     return "";
   }
 
-  function saveVerification() {
+  function saveVerification(skip = false) {
     setErrorMessage("");
     const details = verification();
-    if (!details.company_type) {
-      setErrorMessage("Choose a company type to continue.");
-      return;
-    }
-    const validationMessage = validateVerification(details);
-    if (validationMessage) {
-      setErrorMessage(validationMessage);
-      return;
+    if (!skip) {
+      if (!details.company_type) {
+        setErrorMessage("Choose a company type to continue.");
+        return;
+      }
+      const validationMessage = validateVerification(details);
+      if (validationMessage) {
+        setErrorMessage(validationMessage);
+        return;
+      }
     }
 
     try {
@@ -309,8 +312,10 @@ export default function ProviderVerificationPage() {
           ...draft,
           company_type: details.company_type,
           verification: details,
+          ...(skip ? { developmentBypass: true } : {}),
         }),
       );
+      setIsSkippedForDevelopment(skip);
       setIsSaved(true);
     } catch (error) {
       setErrorMessage(
@@ -328,6 +333,15 @@ export default function ProviderVerificationPage() {
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-4xl">
+        <Show when={import.meta.env.DEV}>
+          <button
+            type="button"
+            onClick={() => saveVerification(true)}
+            class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+          >
+            Development only: skip this step <ArrowRight size={14} aria-hidden="true" />
+          </button>
+        </Show>
         <A
           href="/provider/signup/gallery"
           class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500"
@@ -372,10 +386,12 @@ export default function ProviderVerificationPage() {
             <section role="status" class="mt-6 rounded-[28px] border border-dry-sage-700 bg-dry-sage-900 p-6 sm:p-8">
               <span class="flex size-12 items-center justify-center rounded-2xl bg-hunter-green-500 text-white"><Check size={22} aria-hidden="true" /></span>
               <h2 class="mt-4 font-serif text-2xl tracking-[-0.035em]">
-                Verification details saved.
+                {isSkippedForDevelopment() ? "Verification step skipped for development." : "Verification details saved."}
               </h2>
               <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
-                {`Selected company type: ${companyTypeLabel()}. Your details and uploaded documents are stored locally in this browser and have not been submitted to Bakimono.`}
+                {isSkippedForDevelopment()
+                  ? "Verification was bypassed for development."
+                  : `Selected company type: ${companyTypeLabel()}. Your details and uploaded documents are stored locally in this browser and have not been submitted to Bakimono.`}
               </p>
               <div class="mt-5 flex flex-wrap items-center gap-5">
                 <button type="button" onClick={() => setIsSaved(false)} class="text-sm font-semibold text-hunter-green-500 hover:underline">Edit verification details</button>

@@ -65,7 +65,7 @@ function AppShell(props) {
       <Show when={isProviderSubPage()}>
         <ProviderNavigation />
       </Show>
-      <div class={hasAppNavigation() ? "pb-20 lg:pb-0 lg:pl-[88px]" : ""}>
+      <div class={hasAppNavigation() ? "pb-20 lg:pb-0 lg:pl-22" : ""}>
         <Suspense>{props.children}</Suspense>
       </div>
     </>

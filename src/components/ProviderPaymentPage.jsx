@@ -1,6 +1,6 @@
 import { A } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
-import { ArrowLeft, ArrowRight, Check, ShieldCheck, Smartphone } from "lucide-solid";
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, ShieldCheck, Smartphone } from "lucide-solid";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =
@@ -8,8 +8,14 @@ const inputClass =
 
 export default function ProviderPaymentPage() {
   const [tillNumber, setTillNumber] = createSignal("");
+  const [ownerName, setOwnerName] = createSignal("");
+  const [ownerEmail, setOwnerEmail] = createSignal("");
+  const [ownerPhone, setOwnerPhone] = createSignal("");
+  const [ownerPassword, setOwnerPassword] = createSignal("");
+  const [showPassword, setShowPassword] = createSignal(false);
   const [draftAvailable, setDraftAvailable] = createSignal(false);
   const [isSaved, setIsSaved] = createSignal(false);
+  const [isSkippedForDevelopment, setIsSkippedForDevelopment] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
 
   onMount(() => {
@@ -24,6 +30,16 @@ export default function ProviderPaymentPage() {
       if (draft.payment_method === "mpesa" && typeof draft.till_number === "string") {
         setTillNumber(draft.till_number);
       }
+      const verification = draft.verification ?? {};
+      setOwnerName(
+        draft.provider_member?.name ??
+          (["individual_provider", "sole_proprietor"].includes(verification.company_type)
+            ? verification.legal_name
+            : verification.representative_name) ??
+          "",
+      );
+      setOwnerEmail(draft.provider_member?.email ?? "");
+      setOwnerPhone(draft.provider_member?.phone ?? "");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -33,11 +49,30 @@ export default function ProviderPaymentPage() {
     }
   });
 
-  function savePaymentDetails() {
+  function savePaymentDetails(skip = false) {
     setErrorMessage("");
     const till = tillNumber().trim();
-    if (!/^\d+$/.test(till)) {
+    if (!skip && !/^\d+$/.test(till)) {
       setErrorMessage("Enter your M-PESA Till number using digits only.");
+      return;
+    }
+    const name = ownerName().trim();
+    if (!skip && !name) {
+      setErrorMessage("Enter the default owner's full name.");
+      return;
+    }
+    const email = ownerEmail().trim();
+    if (!skip && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrorMessage("Enter a valid owner email address.");
+      return;
+    }
+    const phone = ownerPhone().trim();
+    if (!skip && !phone) {
+      setErrorMessage("Enter the default owner's phone number.");
+      return;
+    }
+    if (!skip && ownerPassword().length < 8) {
+      setErrorMessage("The owner password must be at least 8 characters.");
       return;
     }
 
@@ -56,8 +91,18 @@ export default function ProviderPaymentPage() {
           ...draft,
           payment_method: "mpesa",
           till_number: till,
+          provider_member: {
+            ...(draft.provider_member ?? {}),
+            name,
+            email,
+            phone,
+            role: "owner",
+          },
+          ...(skip ? { developmentBypass: true } : {}),
         }),
       );
+      setIsSkippedForDevelopment(skip);
+      setOwnerPassword("");
       setIsSaved(true);
     } catch (error) {
       setErrorMessage(
@@ -71,6 +116,15 @@ export default function ProviderPaymentPage() {
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-4xl">
+        <Show when={import.meta.env.DEV}>
+          <button
+            type="button"
+            onClick={() => savePaymentDetails(true)}
+            class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+          >
+            Development only: skip this step <ArrowRight size={14} aria-hidden="true" />
+          </button>
+        </Show>
         <A
           href="/provider/signup/verification"
           class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500"
@@ -115,10 +169,12 @@ export default function ProviderPaymentPage() {
             <section role="status" class="mt-6 rounded-[28px] border border-dry-sage-700 bg-dry-sage-900 p-6 sm:p-8">
               <span class="flex size-12 items-center justify-center rounded-2xl bg-hunter-green-500 text-white"><Check size={22} aria-hidden="true" /></span>
               <h2 class="mt-4 font-serif text-2xl tracking-[-0.035em]">
-                Payment details saved for this session.
+                {isSkippedForDevelopment() ? "Payment step skipped for development." : "Payment details saved for this session."}
               </h2>
               <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
-                Your M-PESA Till number is saved in this browser's temporary signup draft. M-PESA payments are not activated by saving this form.
+                {isSkippedForDevelopment()
+                  ? "This step was bypassed for development."
+                : "Your M-PESA Till number and default owner details are saved in this browser's temporary signup draft. The password was not saved, no account was created, and M-PESA payments are not activated by saving this form."}
               </p>
               <div class="mt-5 flex flex-wrap items-center gap-5">
                 <button type="button" onClick={() => setIsSaved(false)} class="text-sm font-semibold text-hunter-green-500 hover:underline">Edit payment details</button>
@@ -199,8 +255,90 @@ export default function ProviderPaymentPage() {
                 </label>
               </section>
 
+              <section class="rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 class="font-serif text-2xl tracking-[-0.035em]">Default account owner</h2>
+                    <p class="mt-1 text-sm leading-6 text-dust-grey-300">
+                      Add the person who will own and manage this provider account.
+                    </p>
+                  </div>
+                  <span class="rounded-full border border-dry-sage-700 bg-dry-sage-900 px-3 py-1.5 text-xs font-semibold text-hunter-green-500">
+                    Owner
+                  </span>
+                </div>
+                <label class="mt-5 block max-w-xl">
+                  <span class="mb-2 block text-sm font-medium text-dust-grey-100">Owner's full name <span class="text-rose-600">*</span></span>
+                  <input
+                    class={inputClass}
+                    type="text"
+                    autocomplete="name"
+                    maxlength="120"
+                    value={ownerName()}
+                    onInput={(event) => setOwnerName(event.currentTarget.value)}
+                    placeholder="Enter the account owner's full name"
+                    required
+                  />
+                </label>
+                <div class="mt-5 grid max-w-3xl gap-5 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-dust-grey-100">Owner's email <span class="text-rose-600">*</span></span>
+                    <input
+                      class={inputClass}
+                      type="email"
+                      autocomplete="email"
+                      maxlength="254"
+                      value={ownerEmail()}
+                      onInput={(event) => setOwnerEmail(event.currentTarget.value)}
+                      placeholder="owner@example.com"
+                      required
+                    />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-dust-grey-100">Owner's phone number <span class="text-rose-600">*</span></span>
+                    <input
+                      class={inputClass}
+                      type="tel"
+                      autocomplete="tel"
+                      maxlength="30"
+                      value={ownerPhone()}
+                      onInput={(event) => setOwnerPhone(event.currentTarget.value)}
+                      placeholder="+254 7XX XXX XXX"
+                      required
+                    />
+                  </label>
+                  <label class="block sm:col-span-2">
+                    <span class="mb-2 block text-sm font-medium text-dust-grey-100">Account password <span class="text-rose-600">*</span></span>
+                    <span class="relative block">
+                      <input
+                        class={`${inputClass} pr-12`}
+                        type={showPassword() ? "text" : "password"}
+                        autocomplete="new-password"
+                        minlength="8"
+                        value={ownerPassword()}
+                        onInput={(event) => setOwnerPassword(event.currentTarget.value)}
+                        placeholder="At least 8 characters"
+                        required
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword() ? "Hide password" : "Show password"}
+                        aria-pressed={showPassword()}
+                        onClick={() => setShowPassword(!showPassword())}
+                        class="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-dust-grey-300 transition hover:text-dust-grey-100"
+                      >
+                        {showPassword() ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                      </button>
+                    </span>
+                    <span class="mt-1.5 block text-xs leading-5 text-dust-grey-300">
+                      Password collection is not connected to account creation yet. It is never saved in the signup draft and will be cleared when you save.
+                    </span>
+                  </label>
+                </div>
+              </section>
+
               <p class="text-xs leading-5 text-dust-grey-300">
-                Payment details are saved in your temporary browser draft only. They are not sent to a payment provider or stored in Supabase yet.
+                Payment and owner details are saved in your temporary browser draft only. They are not sent to a payment provider or stored in Supabase yet.
               </p>
               <div class="flex justify-end border-t border-dust-grey-700 pt-5">
                 <button type="submit" class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">

@@ -40,6 +40,7 @@ export default function ProviderSocialLinksPage() {
   const [policies, setPolicies] = createSignal([]);
   const [draftAvailable, setDraftAvailable] = createSignal(false);
   const [saved, setSaved] = createSignal(false);
+  const [skippedForDevelopment, setSkippedForDevelopment] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
 
   onMount(() => {
@@ -176,6 +177,7 @@ export default function ProviderSocialLinksPage() {
         }),
       );
       setSocialLinks(entries);
+      setSkippedForDevelopment(false);
       setSaved(true);
     } catch (error) {
       setErrorMessage(
@@ -186,9 +188,59 @@ export default function ProviderSocialLinksPage() {
     }
   }
 
+  function skipStepForDevelopment() {
+    setErrorMessage("");
+    try {
+      const savedDraft = window.sessionStorage.getItem(draftKey);
+      if (!savedDraft) {
+        setDraftAvailable(false);
+        setErrorMessage("Your business details could not be found. Go back and complete step 1.");
+        return;
+      }
+      const draft = JSON.parse(savedDraft);
+      const entries = socialLinks()
+        .filter(({ provider, link }) => provider.trim() && link.trim())
+        .map(({ provider, link }) => ({
+          provider: provider.trim().toLowerCase(),
+          link: link.trim(),
+        }));
+      const completePolicies = policies()
+        .filter(({ type, file }) => type && file)
+        .map(({ type, file }) => ({ type, file }));
+      window.sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          ...draft,
+          social_links: entries,
+          policies: completePolicies,
+          developmentBypass: true,
+        }),
+      );
+      setSocialLinks(entries);
+      setPolicies(completePolicies);
+      setSkippedForDevelopment(true);
+      setSaved(true);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? `Unable to save your development draft: ${error.message}`
+          : "Unable to save your development draft.",
+      );
+    }
+  }
+
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-4xl">
+        <Show when={import.meta.env.DEV}>
+          <button
+            type="button"
+            onClick={skipStepForDevelopment}
+            class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+          >
+            Development only: skip this step <ArrowRight size={14} aria-hidden="true" />
+          </button>
+        </Show>
         <A
           href="/provider/signup"
           class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500"
@@ -253,10 +305,12 @@ export default function ProviderSocialLinksPage() {
                   <Check size={22} aria-hidden="true" />
                 </span>
                 <h2 class="mt-4 font-serif text-2xl tracking-[-0.035em]">
-                  Social links saved for this session.
+                  {skippedForDevelopment() ? "Step skipped for development." : "Social links saved for this session."}
                 </h2>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
-                  Your social links are saved in your temporary provider signup draft.
+                  {skippedForDevelopment()
+                    ? "This step was bypassed without requiring social links or policies."
+                    : "Your social links are saved in your temporary provider signup draft."}
                 </p>
                 <div class="mt-5 flex flex-wrap gap-5">
                   <button

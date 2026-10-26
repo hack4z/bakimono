@@ -185,9 +185,42 @@ export default function ProviderSignupPage() {
     }
   }
 
+  function saveDevelopmentDraft(event) {
+    try {
+      const details = form();
+      window.sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          ...details,
+          phone: splitContactValues(details.phone),
+          email: splitContactValues(details.email),
+          size: details.size === "" ? null : Number(details.size),
+          logoName: logoName(),
+          developmentBypass: true,
+        }),
+      );
+    } catch (error) {
+      event.preventDefault();
+      setErrorMessage(
+        error instanceof Error
+          ? `Unable to save a development draft: ${error.message}`
+          : "Unable to save a development draft.",
+      );
+    }
+  }
+
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-4xl">
+        <Show when={import.meta.env.DEV}>
+          <A
+            href="/provider/signup/social"
+            onClick={saveDevelopmentDraft}
+            class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+          >
+            Development only: skip to social links <ArrowRight size={14} aria-hidden="true" />
+          </A>
+        </Show>
         <A
           href="/provider"
           class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500"
