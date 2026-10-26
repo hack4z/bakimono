@@ -1,12 +1,13 @@
 import { A } from "@solidjs/router";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, FileText, Link2, Plus, Trash2 } from "lucide-solid";
+import { supabase } from "~/utils/supabase";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =
   "h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-300 focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";
 const emptySocialLink = () => ({ provider: "", link: "" });
-const emptyPolicy = () => ({ type: "", file: null });
+const emptyPolicy = () => ({ id: crypto.randomUUID(), type: "", file: null });
 const policyTypes = [
   { value: "terms-and-conditions", label: "Terms and conditions" },
   { value: "privacy-policy", label: "Privacy policy" },
@@ -35,11 +36,23 @@ function isHttpUrl(value) {
   }
 }
 
+function safePolicyFileName(name) {
+  const safeName = name
+    .split(/[\\/]/)
+    .pop()
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "_")
+    .replace(/^\.+/, "")
+    .slice(0, 120);
+  return safeName || "policy-document";
+}
+
 export default function ProviderSocialLinksPage() {
   const [socialLinks, setSocialLinks] = createSignal([emptySocialLink()]);
   const [policies, setPolicies] = createSignal([]);
   const [draftAvailable, setDraftAvailable] = createSignal(false);
   const [saved, setSaved] = createSignal(false);
+  const [isSubmitting, setIsSubmitting] = createSignal(false);
   const [skippedForDevelopment, setSkippedForDevelopment] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
 
@@ -60,7 +73,12 @@ export default function ProviderSocialLinksPage() {
           })),
         );
       }
-      if (Array.isArray(draft.policies)) setPolicies(draft.policies);
+      if (Array.isArray(draft.policies)) {
+        setPolicies(draft.policies.map((policy) => ({
+          ...policy,
+          id: policy.id ?? crypto.randomUUID(),
+        })));
+      }
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -124,7 +142,11 @@ export default function ProviderSocialLinksPage() {
       setPolicies((current) =>
         current.map((policy, itemIndex) =>
           itemIndex === index
-            ? { ...policy, file: { name: file.name, type: file.type, bytes: file.size, data } }
+            ? {
+                ...policy,
+                file: { name: file.name, type: file.type, bytes: file.size, data },
+                storage_path: null,
+              }
             : policy,
         ),
       );
@@ -133,8 +155,9 @@ export default function ProviderSocialLinksPage() {
     }
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+    if (isSubmitting()) return;
     setErrorMessage("");
 
     const entries = socialLinks().map(({ provider, link }) => ({
@@ -154,7 +177,7 @@ export default function ProviderSocialLinksPage() {
       setErrorMessage("Enter a valid link starting with http:// or https:// for each entry.");
       return;
     }
-    if (policies().some((policy) => !policy.type || !policy.file)) {
+    if (policies().some((policy) => !policy.type || !policy.file || (!policy.file.data && !policy.storage_path))) {
       setErrorMessage("For each policy you add, choose both a policy type and a file.");
       return;
     }
@@ -168,23 +191,83 @@ export default function ProviderSocialLinksPage() {
       }
 
       const draft = JSON.parse(savedDraft);
+      if (typeof draft.provider_id !== "string" || !draft.provider_id) {
+        setErrorMessage("Your provider record could not be found. Go back and save your business details first.");
+        return;
+      }
+
+      setIsSubmitting(true);
+      const policyDrafts = policies().map((policy) => ({
+        ...policy,
+        id: policy.id ?? crypto.randomUUID(),
+      }));
+      const { count, error } = await supabase
+        .from("providers")
+        .update({ social_links: entries }, { count: "exact" })
+        .eq("provider_id", draft.provider_id);
+      if (error) throw error;
+      if (count !== 1) {
+        throw new Error("The provider record could not be found or you do not have permission to update its social links.");
+      }
+
       window.sessionStorage.setItem(
         draftKey,
         JSON.stringify({
           ...draft,
           social_links: entries,
-          policies: policies().map(({ type, file }) => ({ type, file })),
+          policies: policyDrafts,
         }),
       );
+
+      const savedPolicies = [];
+      for (const policy of policyDrafts) {
+        if (policy.file?.data) {
+          const fileBlob = await (await fetch(policy.file.data)).blob();
+          const fileName = safePolicyFileName(policy.file.name);
+          const storagePath = `${draft.provider_id}/policies/${policy.type}-${policy.id}-${fileName}`;
+          const { error: uploadError } = await supabase.storage
+            .from("provider_images")
+            .upload(storagePath, fileBlob, {
+              contentType: policy.file.type,
+              upsert: true,
+            });
+          if (uploadError) {
+            throw new Error(`Unable to upload policy file "${policy.file.name}": ${uploadError.message}`);
+          }
+          savedPolicies.push({
+            ...policy,
+            storage_path: storagePath,
+            file: {
+              name: policy.file.name,
+              type: policy.file.type,
+              bytes: policy.file.bytes,
+            },
+          });
+        } else {
+          savedPolicies.push(policy);
+        }
+      }
+
+      window.sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          ...draft,
+          social_links: entries,
+          policies: savedPolicies,
+        }),
+      );
+      setPolicies(savedPolicies);
       setSocialLinks(entries);
       setSkippedForDevelopment(false);
       setSaved(true);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
+        error instanceof Error || (error && typeof error.message === "string")
           ? `Unable to save your social links: ${error.message}`
           : "Unable to save your social links.",
       );
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -305,12 +388,12 @@ export default function ProviderSocialLinksPage() {
                   <Check size={22} aria-hidden="true" />
                 </span>
                 <h2 class="mt-4 font-serif text-2xl tracking-[-0.035em]">
-                  {skippedForDevelopment() ? "Step skipped for development." : "Social links saved for this session."}
+                  {skippedForDevelopment() ? "Step skipped for development." : "Social links saved to your provider record."}
                 </h2>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
                   {skippedForDevelopment()
                     ? "This step was bypassed without requiring social links or policies."
-                    : "Your social links are saved in your temporary provider signup draft."}
+                    : "Your social links are saved in Supabase and policy files are uploaded to provider_images. Their storage paths are kept in the temporary browser draft."}
                 </p>
                 <div class="mt-5 flex flex-wrap gap-5">
                   <button
@@ -450,6 +533,9 @@ export default function ProviderSocialLinksPage() {
                               <span class="mt-1.5 flex items-center gap-1.5 text-xs text-dust-grey-300">
                                 <FileText size={13} aria-hidden="true" />
                                 {policy.file.name}
+                                <Show when={policy.storage_path}>
+                                  <span class="text-fern-500">Uploaded</span>
+                                </Show>
                               </span>
                             </Show>
                           </label>
@@ -468,17 +554,18 @@ export default function ProviderSocialLinksPage() {
                   </div>
                 </Show>
                 <p class="mt-3 text-xs leading-5 text-dust-grey-300">
-                  Accepts PDF, TXT, or DOCX files up to 512 KB each (1 MB total). Files stay in the temporary signup draft.
+                  Accepts PDF, TXT, or DOCX files up to 512 KB each (1 MB total). Files upload to provider_images/&lt;provider_id&gt;/policies/ when you save.
                 </p>
               </section>
 
               <div class="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-dust-grey-700 pt-5 sm:flex-row sm:items-center">
-                <p class="text-xs leading-5 text-dust-grey-300">Social links and selected policy files are saved in your temporary signup draft.</p>
+                <p class="text-xs leading-5 text-dust-grey-300">Social links are saved to your provider record and policy files upload to provider_images.</p>
                 <button
                   type="submit"
+                  disabled={isSubmitting()}
                   class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"
                 >
-                  Save social links <ArrowRight size={16} aria-hidden="true" />
+                  {isSubmitting() ? "Saving social links…" : "Save social links"} <ArrowRight size={16} aria-hidden="true" />
                 </button>
               </div>
             </form>

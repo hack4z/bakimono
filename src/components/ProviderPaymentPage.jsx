@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, ShieldCheck, Smartphone } from "lucide-solid";
+import { supabase } from "~/utils/supabase";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =
@@ -14,6 +15,7 @@ export default function ProviderPaymentPage() {
   const [ownerPassword, setOwnerPassword] = createSignal("");
   const [showPassword, setShowPassword] = createSignal(false);
   const [draftAvailable, setDraftAvailable] = createSignal(false);
+  const [isSaving, setIsSaving] = createSignal(false);
   const [isSaved, setIsSaved] = createSignal(false);
   const [isSkippedForDevelopment, setIsSkippedForDevelopment] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
@@ -49,7 +51,8 @@ export default function ProviderPaymentPage() {
     }
   });
 
-  function savePaymentDetails(skip = false) {
+  async function savePaymentDetails(skip = false) {
+    if (isSaving()) return;
     setErrorMessage("");
     const till = tillNumber().trim();
     if (!skip && !/^\d+$/.test(till)) {
@@ -76,6 +79,7 @@ export default function ProviderPaymentPage() {
       return;
     }
 
+    setIsSaving(true);
     try {
       const savedDraft = window.sessionStorage.getItem(draftKey);
       if (!savedDraft) {
@@ -85,6 +89,21 @@ export default function ProviderPaymentPage() {
       }
 
       const draft = JSON.parse(savedDraft);
+      if (!skip) {
+        if (typeof draft.provider_id !== "string" || !draft.provider_id) {
+          setErrorMessage("Your provider record could not be found. Go back and save your business details first.");
+          return;
+        }
+        const { count, error } = await supabase
+          .from("providers")
+          .update({ mpesa_till: till }, { count: "exact" })
+          .eq("provider_id", draft.provider_id);
+        if (error) throw error;
+        if (count !== 1) {
+          throw new Error("The provider record could not be found or you do not have permission to save its M-PESA Till number.");
+        }
+      }
+
       window.sessionStorage.setItem(
         draftKey,
         JSON.stringify({
@@ -101,6 +120,7 @@ export default function ProviderPaymentPage() {
           ...(skip ? { developmentBypass: true } : {}),
         }),
       );
+      if (!skip) setTillNumber(till);
       setIsSkippedForDevelopment(skip);
       setOwnerPassword("");
       setIsSaved(true);
@@ -110,6 +130,8 @@ export default function ProviderPaymentPage() {
           ? `Unable to save your M-PESA details: ${error.message}`
           : "Unable to save your M-PESA details.",
       );
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -174,7 +196,7 @@ export default function ProviderPaymentPage() {
               <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
                 {isSkippedForDevelopment()
                   ? "This step was bypassed for development."
-                : "Your M-PESA Till number and default owner details are saved in this browser's temporary signup draft. The password was not saved, no account was created, and M-PESA payments are not activated by saving this form."}
+                : "Your M-PESA Till number was saved to your provider record. Default owner details remain in this browser's temporary signup draft. The password was not saved, no account was created, and M-PESA payments are not activated by saving this form."}
               </p>
               <div class="mt-5 flex flex-wrap items-center gap-5">
                 <button type="button" onClick={() => setIsSaved(false)} class="text-sm font-semibold text-hunter-green-500 hover:underline">Edit payment details</button>
@@ -338,11 +360,11 @@ export default function ProviderPaymentPage() {
               </section>
 
               <p class="text-xs leading-5 text-dust-grey-300">
-                Payment and owner details are saved in your temporary browser draft only. They are not sent to a payment provider or stored in Supabase yet.
+                The M-PESA Till number is saved to your providers record. Owner details stay in your temporary browser draft; they are not sent to a payment provider or stored in Supabase.
               </p>
               <div class="flex justify-end border-t border-dust-grey-700 pt-5">
-                <button type="submit" class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
-                  Save payment details <ArrowRight size={16} aria-hidden="true" />
+                <button type="submit" disabled={isSaving()} class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-wait disabled:opacity-60">
+                  {isSaving() ? "Saving…" : "Save payment details"} <ArrowRight size={16} aria-hidden="true" />
                 </button>
               </div>
             </form>

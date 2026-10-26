@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
 import { createSignal, For, onMount, Show } from "solid-js";
-import { ArrowLeft, ArrowRight, BadgeCheck, Check, FileText, Trash2 } from "lucide-solid";
+import { ArrowLeft, ArrowRight, BadgeCheck, Check, FileText, Plus, Trash2 } from "lucide-solid";
+import { supabase } from "~/utils/supabase";
 
 const draftKey = "bakimono-provider-signup-draft";
 const fileDatabaseName = "bakimono-provider-signup-files";
@@ -19,6 +20,13 @@ const idTypes = [
   { value: "kenyan_national_id", label: "Kenyan National ID" },
   { value: "passport", label: "Passport" },
 ];
+const emptyPartner = () => ({
+  id: crypto.randomUUID(),
+  name: "",
+  id_type: "",
+  id_number: "",
+  id_documents: [],
+});
 
 let fileDatabasePromise;
 
@@ -52,6 +60,21 @@ async function storeDocument(file) {
   return { id, name: file.name, type: file.type, size: file.size };
 }
 
+async function getStoredDocument(id) {
+  const database = await openFileDatabase();
+  return new Promise((resolve, reject) => {
+    const request = database.transaction("documents", "readonly").objectStore("documents").get(id);
+    request.onsuccess = () => {
+      if (!request.result?.file) {
+        reject(new Error("A selected document is no longer available in this browser. Please select it again."));
+        return;
+      }
+      resolve(request.result.file);
+    };
+    request.onerror = () => reject(request.error ?? new Error("Unable to retrieve a selected document."));
+  });
+}
+
 async function deleteStoredDocument(id) {
   const database = await openFileDatabase();
   await new Promise((resolve, reject) => {
@@ -61,6 +84,24 @@ async function deleteStoredDocument(id) {
     transaction.onerror = () => reject(transaction.error ?? new Error("Unable to remove the selected document."));
     transaction.onabort = () => reject(transaction.error ?? new Error("Document removal was interrupted."));
   });
+}
+
+function safeIdentifier(value) {
+  const safeValue = value.trim().replace(/[^\w.-]+/g, "_").replace(/^\.+/, "");
+  return safeValue || "document";
+}
+
+function documentExtension(file) {
+  const extensions = {
+    "application/pdf": "pdf",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  };
+  const extension = extensions[file.type];
+  if (!extension) throw new Error(`The file type for "${file.name}" is not supported.`);
+  return extension;
 }
 
 const emptyVerification = {
@@ -73,6 +114,7 @@ const emptyVerification = {
   business_registration_number: "",
   business_registration_documents: [],
   partnership_documents: [],
+  partners: [],
   company_registration_number: "",
   incorporation_documents: [],
   representative_name: "",
@@ -104,6 +146,7 @@ function Field(props) {
 export default function ProviderVerificationPage() {
   const [verification, setVerification] = createSignal({ ...emptyVerification });
   const [draftAvailable, setDraftAvailable] = createSignal(false);
+  const [isSaving, setIsSaving] = createSignal(false);
   const [isSaved, setIsSaved] = createSignal(false);
   const [isSkippedForDevelopment, setIsSkippedForDevelopment] = createSignal(false);
   const [isUploading, setIsUploading] = createSignal(false);
@@ -122,6 +165,25 @@ export default function ProviderVerificationPage() {
         restored.company_type =
           draft.company_type === "sole_ownership" ? "sole_proprietor" : draft.company_type;
       }
+      if (restored.company_type === "partnership") {
+        restored.partners = Array.isArray(restored.partners)
+          ? restored.partners.map((partner) => ({
+              ...emptyPartner(),
+              ...partner,
+              id: partner.id ?? crypto.randomUUID(),
+              id_documents: Array.isArray(partner.id_documents) ? partner.id_documents : [],
+            }))
+          : [];
+        if (restored.partners.length === 0 && restored.representative_name) {
+          restored.partners = [{
+            ...emptyPartner(),
+            name: restored.representative_name,
+            id_type: restored.representative_id_type,
+            id_number: restored.representative_id_number,
+            id_documents: restored.representative_id_documents ?? [],
+          }];
+        }
+      }
       setVerification(restored);
     } catch (error) {
       setErrorMessage(
@@ -136,6 +198,41 @@ export default function ProviderVerificationPage() {
     setVerification((current) => ({ ...current, [name]: value }));
   }
 
+  function updatePartner(index, field, value) {
+    setVerification((current) => ({
+      ...current,
+      partners: current.partners.map((partner, partnerIndex) =>
+        partnerIndex === index ? { ...partner, [field]: value } : partner,
+      ),
+    }));
+  }
+
+  function addPartner() {
+    setVerification((current) => ({
+      ...current,
+      partners: [...current.partners, emptyPartner()],
+    }));
+  }
+
+  async function removePartner(index) {
+    const partner = verification().partners[index];
+    if (!partner) return;
+    setErrorMessage("");
+    try {
+      await Promise.all(partner.id_documents.map((document) => deleteStoredDocument(document.id)));
+      setVerification((current) => ({
+        ...current,
+        partners: current.partners.filter((_, partnerIndex) => partnerIndex !== index),
+      }));
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? `Unable to remove partner documents: ${error.message}`
+          : "Unable to remove partner documents.",
+      );
+    }
+  }
+
   async function selectCompanyType(companyType) {
     const current = verification();
     if (companyType === current.company_type) return;
@@ -144,12 +241,17 @@ export default function ProviderVerificationPage() {
       "id_documents",
       "business_registration_documents",
       "partnership_documents",
+      "partners",
       "incorporation_documents",
       "representative_id_documents",
       "authority_documents",
       "entity_registration_documents",
     ];
-    const oldDocuments = documentFields.flatMap((field) => current[field] ?? []);
+    const oldDocuments = documentFields.flatMap((field) =>
+      field === "partners"
+        ? (current.partners ?? []).flatMap((partner) => partner.id_documents ?? [])
+        : current[field] ?? [],
+    );
     setVerification({ ...emptyVerification, company_type: companyType });
     setIsSaved(false);
     setErrorMessage("");
@@ -162,7 +264,7 @@ export default function ProviderVerificationPage() {
     }
   }
 
-  async function addDocuments(name, event) {
+  async function addDocuments(name, event, partnerIndex) {
     const files = [...(event.currentTarget.files ?? [])];
     event.currentTarget.value = "";
     if (!files.length) return;
@@ -188,10 +290,19 @@ export default function ProviderVerificationPage() {
     const storedFiles = [];
     try {
       for (const file of files) storedFiles.push(await storeDocument(file));
-      setVerification((current) => ({
-        ...current,
-        [name]: [...current[name], ...storedFiles],
-      }));
+      setVerification((current) => name === "partner_id_documents"
+        ? {
+            ...current,
+            partners: current.partners.map((partner, index) =>
+              index === partnerIndex
+                ? { ...partner, id_documents: [...partner.id_documents, ...storedFiles] }
+                : partner,
+            ),
+          }
+        : {
+            ...current,
+            [name]: [...current[name], ...storedFiles],
+          });
     } catch (error) {
       const cleanupResults = await Promise.allSettled(
         storedFiles.map((storedFile) => deleteStoredDocument(storedFile.id)),
@@ -207,14 +318,23 @@ export default function ProviderVerificationPage() {
     }
   }
 
-  async function removeDocument(name, id) {
+  async function removeDocument(name, id, partnerIndex) {
     setErrorMessage("");
     try {
       await deleteStoredDocument(id);
-      setVerification((current) => ({
-        ...current,
-        [name]: current[name].filter((document) => document.id !== id),
-      }));
+      setVerification((current) => name === "partner_id_documents"
+        ? {
+            ...current,
+            partners: current.partners.map((partner, index) =>
+              index === partnerIndex
+                ? { ...partner, id_documents: partner.id_documents.filter((document) => document.id !== id) }
+                : partner,
+            ),
+          }
+        : {
+            ...current,
+            [name]: current[name].filter((document) => document.id !== id),
+          });
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -255,10 +375,11 @@ export default function ProviderVerificationPage() {
 
     if (details.company_type === "partnership") {
       if (!details.partnership_documents.length) return "Upload an applicable partnership or business registration document.";
-      if (!details.representative_name.trim()) return "Enter the partner or authorized representative's full legal name.";
-      if (!details.representative_id_type) return "Choose the representative's ID document type.";
-      if (!details.representative_id_number.trim()) return "Enter the representative's ID number.";
-      if (!details.representative_id_documents.length) return "Upload the representative's ID document.";
+      if (!details.partners.length) return "Add at least one partner.";
+      if (details.partners.some((partner) => !partner.name.trim())) return "Enter the full legal name for each partner.";
+      if (details.partners.some((partner) => !partner.id_type)) return "Choose an ID document type for each partner.";
+      if (details.partners.some((partner) => !partner.id_number.trim())) return "Enter an ID number for each partner.";
+      if (details.partners.some((partner) => !partner.id_documents.length)) return "Upload an ID document for each partner.";
     }
 
     if (details.company_type === "limited_company") {
@@ -282,7 +403,146 @@ export default function ProviderVerificationPage() {
     return "";
   }
 
-  function saveVerification(skip = false) {
+  function legalityRecord(details, providerId) {
+    const record = {
+      provider_id: providerId,
+      updated_at: new Date().toISOString(),
+      type: details.company_type,
+      personal_name: null,
+      id_type: null,
+      id_number: null,
+      registration_number: null,
+      entity_name: null,
+      representative_name: null,
+    };
+
+    if (["individual_provider", "sole_proprietor"].includes(details.company_type)) {
+      record.personal_name = details.legal_name.trim();
+      record.id_type = details.id_type || null;
+      record.id_number = details.id_number.trim() || null;
+    }
+    if (details.company_type === "sole_proprietor") {
+      record.entity_name = details.business_name.trim();
+      record.registration_number = details.business_registration_number.trim() || null;
+    } else if (details.company_type === "partnership") {
+      record.entity_name = details.legal_name.trim();
+      record.registration_number = details.business_registration_number.trim() || null;
+    } else if (details.company_type === "limited_company") {
+      record.entity_name = details.legal_name.trim();
+      record.registration_number = details.company_registration_number.trim() || null;
+      record.representative_name = details.representative_name.trim();
+      record.id_type = details.representative_id_type || null;
+      record.id_number = details.representative_id_number.trim() || null;
+    } else if (details.company_type === "other_registered_entity") {
+      record.entity_name = details.legal_name.trim();
+      record.registration_number = details.entity_registration_number.trim() || null;
+      record.representative_name = details.representative_name.trim();
+      record.id_type = details.representative_id_type || null;
+      record.id_number = details.representative_id_number.trim() || null;
+    }
+
+    return record;
+  }
+
+  function verificationDocumentPlans(details) {
+    const plans = [];
+    const addPlans = (field, documents, identifier, partnerIndex = null) => {
+      for (const document of documents ?? []) {
+        if (!identifier?.trim()) {
+          throw new Error(`Enter the matching ID or registration number before uploading "${document.name}".`);
+        }
+        plans.push({ field, document, identifier, partnerIndex });
+      }
+    };
+
+    addPlans(
+      "id_documents",
+      details.id_documents,
+      ["individual_provider", "sole_proprietor"].includes(details.company_type) ? details.id_number : "",
+    );
+    addPlans("business_registration_documents", details.business_registration_documents, details.business_registration_number);
+    addPlans(
+      "partnership_documents",
+      details.partnership_documents,
+      details.business_registration_number || details.partners[0]?.id_number,
+    );
+    addPlans("incorporation_documents", details.incorporation_documents, details.company_registration_number);
+    addPlans("representative_id_documents", details.representative_id_documents, details.representative_id_number);
+    addPlans(
+      "authority_documents",
+      details.authority_documents,
+      details.representative_id_number || details.partners[0]?.id_number,
+    );
+    addPlans(
+      "entity_registration_documents",
+      details.entity_registration_documents,
+      details.entity_registration_number || details.representative_id_number,
+    );
+    for (const [partnerIndex, partner] of details.partners.entries()) {
+      addPlans("partner_id_documents", partner.id_documents, partner.id_number, partnerIndex);
+    }
+    return plans;
+  }
+
+  function withDocumentStoragePath(details, plan, storagePath) {
+    if (plan.field === "partner_id_documents") {
+      return {
+        ...details,
+        partners: details.partners.map((partner, index) =>
+          index === plan.partnerIndex
+            ? {
+                ...partner,
+                id_documents: partner.id_documents.map((document) =>
+                  document.id === plan.document.id ? { ...document, storage_path: storagePath } : document,
+                ),
+              }
+            : partner,
+        ),
+      };
+    }
+    return {
+      ...details,
+      [plan.field]: details[plan.field].map((document) =>
+        document.id === plan.document.id ? { ...document, storage_path: storagePath } : document,
+      ),
+    };
+  }
+
+  async function uploadVerificationDocuments(details, providerId) {
+    let savedDetails = details;
+    for (const plan of verificationDocumentPlans(details)) {
+      const extension = documentExtension({ name: plan.document.name, type: plan.document.type });
+      const filename = `${safeIdentifier(plan.identifier)}.${extension}`;
+      const storagePath = `${providerId}/documents/${plan.document.id}/${filename}`;
+      if (plan.document.storage_path === storagePath) continue;
+
+      const file = await getStoredDocument(plan.document.id);
+      const { error } = await supabase.storage
+        .from("provider_images")
+        .upload(storagePath, file, {
+          contentType: file.type,
+          upsert: true,
+        });
+      if (error) {
+        throw new Error(`Unable to upload "${plan.document.name}" to provider_images: ${error.message}`);
+      }
+
+      savedDetails = withDocumentStoragePath(savedDetails, plan, storagePath);
+      setVerification(savedDetails);
+      const savedDraft = JSON.parse(window.sessionStorage.getItem(draftKey) ?? "{}");
+      window.sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          ...savedDraft,
+          verification: savedDetails,
+        }),
+      );
+    }
+    return savedDetails;
+  }
+
+  async function saveVerification(skip = false) {
+    if (isSaving()) return;
     setErrorMessage("");
     const details = verification();
     if (!skip) {
@@ -306,12 +566,60 @@ export default function ProviderVerificationPage() {
       }
 
       const draft = JSON.parse(savedDraft);
+      let legalitiesEntryId;
       window.sessionStorage.setItem(
         draftKey,
         JSON.stringify({
           ...draft,
           company_type: details.company_type,
           verification: details,
+          ...(skip ? { developmentBypass: true } : {}),
+        }),
+      );
+      if (!skip) {
+        if (typeof draft.provider_id !== "string" || !draft.provider_id) {
+          setErrorMessage("Your provider record could not be found. Go back and save your business details first.");
+          return;
+        }
+        setIsSaving(true);
+        const record = legalityRecord(details, draft.provider_id);
+        const { data: existingRecord, error: lookupError } = await supabase
+          .from("legalities")
+          .select("entry_id")
+          .eq("provider_id", draft.provider_id)
+          .maybeSingle();
+        if (lookupError) throw lookupError;
+        legalitiesEntryId = existingRecord?.entry_id;
+
+        if (legalitiesEntryId) {
+          const { data, error } = await supabase
+            .from("legalities")
+            .update(record)
+            .eq("entry_id", legalitiesEntryId)
+            .select("entry_id")
+            .single();
+          if (error) throw error;
+          legalitiesEntryId = data.entry_id;
+        } else {
+          const { data, error } = await supabase
+            .from("legalities")
+            .insert(record)
+            .select("entry_id")
+            .single();
+          if (error) throw error;
+          legalitiesEntryId = data.entry_id;
+        }
+        await uploadVerificationDocuments(details, draft.provider_id);
+      }
+
+      const savedDetails = verification();
+      window.sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          ...draft,
+          company_type: details.company_type,
+          verification: savedDetails,
+          ...(legalitiesEntryId ? { legalities_entry_id: legalitiesEntryId } : {}),
           ...(skip ? { developmentBypass: true } : {}),
         }),
       );
@@ -323,6 +631,8 @@ export default function ProviderVerificationPage() {
           ? `Unable to save verification details: ${error.message}`
           : "Unable to save verification details.",
       );
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -391,7 +701,7 @@ export default function ProviderVerificationPage() {
               <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
                 {isSkippedForDevelopment()
                   ? "Verification was bypassed for development."
-                  : `Selected company type: ${companyTypeLabel()}. Your details and uploaded documents are stored locally in this browser and have not been submitted to Bakimono.`}
+                  : `Selected company type: ${companyTypeLabel()}. Legal identity and registration fields were saved to Supabase, and documents were uploaded to provider_images/<provider_id>/documents/. Partnership member details remain in this browser.`}
               </p>
               <div class="mt-5 flex flex-wrap items-center gap-5">
                 <button type="button" onClick={() => setIsSaved(false)} class="text-sm font-semibold text-hunter-green-500 hover:underline">Edit verification details</button>
@@ -515,22 +825,84 @@ export default function ProviderVerificationPage() {
 
                   <Show when={["partnership", "limited_company", "other_registered_entity"].includes(verification().company_type)}>
                     <section class="rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
-                      <h2 class="font-serif text-2xl">Representative identity</h2>
-                      <p class="mt-1 text-sm text-dust-grey-300">Keep the representative’s identification separate from entity documents.</p>
+                      <Show
+                        when={verification().company_type === "partnership"}
+                        fallback={
+                          <>
+                            <h2 class="font-serif text-2xl">Representative identity</h2>
+                            <p class="mt-1 text-sm text-dust-grey-300">Keep the representative’s identification separate from entity documents.</p>
+                            <div class="mt-5 grid gap-5 sm:grid-cols-2">
+                              <Field label={verification().company_type === "limited_company" ? "Director or authorized representative's full legal name" : "Authorized representative's full legal name"} required class="sm:col-span-2">
+                                <input class={inputClass} value={verification().representative_name} onInput={(event) => updateField("representative_name", event.currentTarget.value)} required />
+                              </Field>
+                              <Field label="Representative's ID document type" required>
+                                <select class={inputClass} value={verification().representative_id_type} onChange={(event) => updateField("representative_id_type", event.currentTarget.value)} required>
+                                  <option value="">Choose document type</option>
+                                  <For each={idTypes}>{(type) => <option value={type.value}>{type.label}</option>}</For>
+                                </select>
+                              </Field>
+                              <Field label="Representative's ID number" required>
+                                <input class={inputClass} value={verification().representative_id_number} onInput={(event) => updateField("representative_id_number", event.currentTarget.value)} required />
+                              </Field>
+                              <DocumentList label="Representative's ID document" required name="representative_id_documents" documents={verification().representative_id_documents} uploading={isUploading()} onAdd={addDocuments} onRemove={removeDocument} class="sm:col-span-2" />
+                            </div>
+                          </>
+                        }
+                      >
+                        <div class="flex flex-wrap items-start justify-between gap-4">
+                          <div>
+                            <h2 class="font-serif text-2xl">Partnership members</h2>
+                            <p class="mt-1 text-sm text-dust-grey-300">Add each partner’s legal name and identification details.</p>
+                          </div>
+                          <button type="button" onClick={addPartner} disabled={isUploading()} class="inline-flex h-10 items-center gap-2 rounded-xl border border-dry-sage-700 px-4 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-900 disabled:opacity-60">
+                            <Plus size={16} aria-hidden="true" /> Add partner
+                          </button>
+                        </div>
+                        <div class="mt-5 space-y-4">
+                          <For each={verification().partners}>
+                            {(partner, index) => (
+                              <article class="rounded-2xl border border-dust-grey-600 bg-dust-grey-800 p-4 sm:p-5">
+                                <div class="mb-4 flex items-center justify-between gap-3">
+                                  <h3 class="text-sm font-semibold text-dust-grey-100">Partner {index() + 1}</h3>
+                                  <button type="button" onClick={() => removePartner(index())} disabled={isUploading()} aria-label={`Remove partner ${index() + 1}`} class="flex size-9 items-center justify-center rounded-xl text-dust-grey-300 transition hover:bg-rose-50 hover:text-rose-700 disabled:opacity-60">
+                                    <Trash2 size={16} aria-hidden="true" />
+                                  </button>
+                                </div>
+                                <div class="grid gap-5 sm:grid-cols-2">
+                                  <Field label="Partner's full legal name" required class="sm:col-span-2">
+                                    <input class={inputClass} value={partner.name} onInput={(event) => updatePartner(index(), "name", event.currentTarget.value)} required />
+                                  </Field>
+                                  <Field label="ID document type" required>
+                                    <select class={inputClass} value={partner.id_type} onChange={(event) => updatePartner(index(), "id_type", event.currentTarget.value)} required>
+                                      <option value="">Choose document type</option>
+                                      <For each={idTypes}>{(type) => <option value={type.value}>{type.label}</option>}</For>
+                                    </select>
+                                  </Field>
+                                  <Field label="ID number" required>
+                                    <input class={inputClass} value={partner.id_number} onInput={(event) => updatePartner(index(), "id_number", event.currentTarget.value)} required />
+                                  </Field>
+                                  <DocumentList
+                                    label="Partner's ID document"
+                                    required
+                                    name="partner_id_documents"
+                                    documents={partner.id_documents}
+                                    uploading={isUploading()}
+                                    onAdd={(name, event) => addDocuments(name, event, index())}
+                                    onRemove={(name, id) => removeDocument(name, id, index())}
+                                    class="sm:col-span-2"
+                                  />
+                                </div>
+                              </article>
+                            )}
+                          </For>
+                          <Show when={verification().partners.length === 0}>
+                            <p class="rounded-xl border border-dashed border-dust-grey-600 px-4 py-6 text-center text-sm text-dust-grey-300">
+                              Add at least one partner to provide partnership identity details.
+                            </p>
+                          </Show>
+                        </div>
+                      </Show>
                       <div class="mt-5 grid gap-5 sm:grid-cols-2">
-                        <Field label={verification().company_type === "partnership" ? "Partner or authorized representative's full legal name" : verification().company_type === "limited_company" ? "Director or authorized representative's full legal name" : "Authorized representative's full legal name"} required class="sm:col-span-2">
-                          <input class={inputClass} value={verification().representative_name} onInput={(event) => updateField("representative_name", event.currentTarget.value)} required />
-                        </Field>
-                        <Field label="Representative's ID document type" required>
-                          <select class={inputClass} value={verification().representative_id_type} onChange={(event) => updateField("representative_id_type", event.currentTarget.value)} required>
-                            <option value="">Choose document type</option>
-                            <For each={idTypes}>{(type) => <option value={type.value}>{type.label}</option>}</For>
-                          </select>
-                        </Field>
-                        <Field label="Representative's ID number" required>
-                          <input class={inputClass} value={verification().representative_id_number} onInput={(event) => updateField("representative_id_number", event.currentTarget.value)} required />
-                        </Field>
-                        <DocumentList label="Representative's ID document" required name="representative_id_documents" documents={verification().representative_id_documents} uploading={isUploading()} onAdd={addDocuments} onRemove={removeDocument} class="sm:col-span-2" />
                         <DocumentList label="Proof of authority to represent" name="authority_documents" documents={verification().authority_documents} uploading={isUploading()} onAdd={addDocuments} onRemove={removeDocument} class="sm:col-span-2" hint={verification().company_type === "limited_company" ? "Add this if the submitted documents do not establish the representative's authority." : "Add this where necessary, such as an authorization letter or supporting partnership document."} />
                       </div>
                     </section>
@@ -542,9 +914,9 @@ export default function ProviderVerificationPage() {
                 <p role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage()}</p>
               </Show>
               <div class="flex flex-col-reverse justify-between gap-3 border-t border-dust-grey-700 pt-5 sm:flex-row sm:items-center">
-                <p class="text-xs leading-5 text-dust-grey-300">Documents are stored locally in this browser until removed or site data is cleared. They are not submitted to Bakimono yet.</p>
-                <button type="submit" disabled={isUploading()} class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-wait disabled:opacity-60">
-                  Save verification details <Check size={16} aria-hidden="true" />
+                <p class="text-xs leading-5 text-dust-grey-300">Legal identity and registration fields save to legalities. Documents upload to provider_images/&lt;provider_id&gt;/documents/ with their ID or registration number as the filename. Partnership member details stay in this browser.</p>
+                <button type="submit" disabled={isUploading() || isSaving()} class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-wait disabled:opacity-60">
+                  {isSaving() ? "Saving…" : "Save verification details"} <Check size={16} aria-hidden="true" />
                 </button>
               </div>
             </form>
@@ -579,6 +951,9 @@ function DocumentList(props) {
                     <FileText size={15} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
                     <span class="truncate">{document.name}</span>
                     <span class="shrink-0 text-dust-grey-300">({(document.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                    <Show when={document.storage_path}>
+                      <span class="shrink-0 font-semibold text-hunter-green-500">Uploaded</span>
+                    </Show>
                   </span>
                   <button
                     type="button"

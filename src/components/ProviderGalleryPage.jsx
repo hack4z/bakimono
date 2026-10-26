@@ -1,11 +1,17 @@
 import { A } from "@solidjs/router";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, ImagePlus, Trash2 } from "lucide-solid";
+import { supabase } from "~/utils/supabase";
 
 const draftKey = "bakimono-provider-signup-draft";
 const maxPhotos = 5;
 const maxGalleryBytes = 600 * 1024;
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"];
+const imageExtensions = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
 
 function readImage(file) {
   return new Promise((resolve, reject) => {
@@ -26,6 +32,7 @@ export default function ProviderGalleryPage() {
   const [photos, setPhotos] = createSignal([]);
   const [draftAvailable, setDraftAvailable] = createSignal(false);
   const [isProcessing, setIsProcessing] = createSignal(false);
+  const [isSaving, setIsSaving] = createSignal(false);
   const [isSaved, setIsSaved] = createSignal(false);
   const [isSkippedForDevelopment, setIsSkippedForDevelopment] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
@@ -94,7 +101,8 @@ export default function ProviderGalleryPage() {
     setErrorMessage("");
   }
 
-  function persistGallery(skipped = false) {
+  async function persistGallery(skipped = false) {
+    if (isSaving()) return;
     setErrorMessage("");
     try {
       const savedDraft = window.sessionStorage.getItem(draftKey);
@@ -104,14 +112,56 @@ export default function ProviderGalleryPage() {
         return;
       }
       const draft = JSON.parse(savedDraft);
+      const selectedPhotos = photos();
+      if (!skipped && selectedPhotos.length > 0 && (typeof draft.provider_id !== "string" || !draft.provider_id)) {
+        setErrorMessage("Your provider record could not be found. Go back and save your business details first.");
+        return;
+      }
+      setIsSaving(true);
       window.sessionStorage.setItem(
         draftKey,
         JSON.stringify({
           ...draft,
-          gallery: photos(),
+          gallery: selectedPhotos,
           ...(skipped ? { developmentBypass: true } : {}),
         }),
       );
+
+      let savedPhotos = selectedPhotos;
+      if (!skipped) {
+        savedPhotos = [];
+        for (const [index, photo] of selectedPhotos.entries()) {
+          const extension = imageExtensions[photo.type];
+          if (!extension) {
+            throw new Error(`The image type for "${photo.name}" is not supported.`);
+          }
+          const storagePath = `${draft.provider_id}/gallery/${index + 1}.${extension}`;
+          if (photo.data) {
+            const imageBlob = await (await fetch(photo.data)).blob();
+            const { error } = await supabase.storage
+              .from("provider_images")
+              .upload(storagePath, imageBlob, {
+                contentType: photo.type,
+                upsert: true,
+              });
+            if (error) {
+              throw new Error(`Unable to upload gallery photo "${photo.name}": ${error.message}`);
+            }
+          } else if (photo.storage_path !== storagePath) {
+            throw new Error(`The image data for "${photo.name}" is unavailable. Please select it again.`);
+          }
+          savedPhotos.push({ ...photo, storage_path: storagePath });
+        }
+        window.sessionStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            ...draft,
+            gallery: savedPhotos,
+            ...(skipped ? { developmentBypass: true } : {}),
+          }),
+        );
+      }
+      setPhotos(savedPhotos);
       setIsSkippedForDevelopment(skipped);
       setIsSaved(true);
     } catch (error) {
@@ -120,6 +170,8 @@ export default function ProviderGalleryPage() {
           ? `Unable to save your gallery: ${error.message}`
           : "Unable to save your gallery.",
       );
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -130,6 +182,7 @@ export default function ProviderGalleryPage() {
           <button
             type="button"
             onClick={() => persistGallery(true)}
+            disabled={isSaving()}
             class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
           >
             Development only: skip this step <ArrowRight size={14} aria-hidden="true" />
@@ -202,7 +255,7 @@ export default function ProviderGalleryPage() {
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
                   {isSkippedForDevelopment()
                     ? "The gallery was bypassed without requiring photos."
-                    : `Your provider draft now has ${photos().length} gallery photo${photos().length === 1 ? "" : "s"}.`}
+                    : `${photos().length} gallery photo${photos().length === 1 ? "" : "s"} uploaded under your provider's gallery folder with sequential filenames.`}
                 </p>
                 <div class="mt-5 flex flex-wrap gap-5">
                   <button
@@ -273,16 +326,16 @@ export default function ProviderGalleryPage() {
               </Show>
 
               <p class="mt-4 text-xs leading-5 text-dust-grey-300">
-                Temporary signup drafts support up to 600 KB of gallery photos in total.
+                Photos upload to provider_images/&lt;provider_id&gt;/gallery/ as sequentially numbered files. Temporary signup drafts support up to 600 KB total.
               </p>
               <div class="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-dust-grey-700 pt-5 sm:flex-row sm:items-center">
                 <p class="text-xs leading-5 text-dust-grey-300">Photos are optional; saving an empty gallery is fine.</p>
                 <button
                   type="submit"
-                  disabled={isProcessing()}
+                  disabled={isProcessing() || isSaving()}
                   class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-wait disabled:opacity-60"
                 >
-                  Save and continue <ArrowRight size={16} aria-hidden="true" />
+                  {isSaving() ? "Uploading photos…" : "Save and continue"} <ArrowRight size={16} aria-hidden="true" />
                 </button>
               </div>
             </form>

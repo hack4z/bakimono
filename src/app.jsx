@@ -15,6 +15,7 @@ import ProviderPaymentPage from "~/components/ProviderPaymentPage";
 import ProviderSignupPage from "~/components/ProviderSignupPage";
 import ProviderSocialLinksPage from "~/components/ProviderSocialLinksPage";
 import ProviderVerificationPage from "~/components/ProviderVerificationPage";
+import ProviderWorkspacePage from "~/components/ProviderWorkspacePage";
 import SignupPage from "~/components/SignupPage";
 import SettingsPage, { SettingsInfoPage } from "~/components/SettingsPage";
 import "./app.css";
@@ -32,6 +33,11 @@ export default function App() {
       <Route path="/bookings" component={BookingsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/provider" component={ProviderPage} />
+      <Route path="/provider/dashboard" component={ProviderWorkspacePage} />
+      <Route path="/provider/associates" component={ProviderWorkspacePage} />
+      <Route path="/provider/analytics" component={ProviderWorkspacePage} />
+      <Route path="/provider/payments" component={ProviderWorkspacePage} />
+      <Route path="/provider/settings" component={ProviderWorkspacePage} />
       <Route path="/provider/signup" component={ProviderSignupPage} />
       <Route path="/provider/signup/social" component={ProviderSocialLinksPage} />
       <Route path="/provider/signup/gallery" component={ProviderGalleryPage} />
@@ -65,7 +71,7 @@ function AppShell(props) {
       <Show when={isProviderSubPage()}>
         <ProviderNavigation />
       </Show>
-      <div class={hasAppNavigation() ? "pb-20 lg:pb-0 lg:pl-22" : ""}>
+      <div class={hasAppNavigation() ? "pb-20 lg:pb-0 lg:pl-18" : ""}>
         <Suspense>{props.children}</Suspense>
       </div>
     </>

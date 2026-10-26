@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Building2, Check, Clock3, X } from "lucide-solid";
+import { supabase } from "~/utils/supabase";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =
@@ -29,6 +30,18 @@ function splitContactValues(value) {
     .filter(Boolean);
 }
 
+function logoFileExtension(dataUrl) {
+  const mimeType = dataUrl.match(/^data:(image\/(?:png|jpeg|webp));base64,/)?.[1];
+  const extensions = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+  };
+  const extension = extensions[mimeType];
+  if (!extension) throw new Error("The selected logo file type is not supported.");
+  return { mimeType, extension };
+}
+
 function Field(props) {
   return (
     <label class={props.class ?? "block"}>
@@ -46,6 +59,7 @@ function Field(props) {
 export default function ProviderSignupPage() {
   const [form, setForm] = createSignal({ ...emptyForm });
   const [saved, setSaved] = createSignal(false);
+  const [isSubmitting, setIsSubmitting] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
   const [logoName, setLogoName] = createSignal("");
   let logoInput;
@@ -137,8 +151,9 @@ export default function ProviderSignupPage() {
     }
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+    if (isSubmitting()) return;
     setErrorMessage("");
 
     const details = form();
@@ -165,23 +180,78 @@ export default function ProviderSignupPage() {
       return;
     }
 
-    const draft = {
-      ...details,
+    const providerData = {
+      name: details.name.trim(),
+      address: details.address.trim(),
+      county: details.county.trim(),
+      opening_time: details.opening_time,
+      closing_time: details.closing_time,
+      desciption: details.desciption.trim(),
       phone: phones,
       email: emails,
+      category: details.category,
       size: Number(details.size),
-      logoName: logoName(),
     };
 
+    setIsSubmitting(true);
     try {
-      window.sessionStorage.setItem(draftKey, JSON.stringify(draft));
+      const savedDraft = window.sessionStorage.getItem(draftKey);
+      const existingDraft = savedDraft ? JSON.parse(savedDraft) : {};
+      const providerId = existingDraft.provider_id ?? crypto.randomUUID();
+      if (existingDraft.provider_id) {
+        const { count, error } = await supabase
+          .from("providers")
+          .update(providerData, { count: "exact" })
+          .eq("provider_id", providerId);
+        if (error) throw error;
+        if (count !== 1) {
+          throw new Error("The provider record could not be found or you do not have permission to update it.");
+        }
+      } else {
+        const { error } = await supabase
+          .from("providers")
+          .insert({ ...providerData, provider_id: providerId });
+        if (error) throw error;
+      }
+
+      const draft = {
+        ...existingDraft,
+        ...details,
+        phone: phones,
+        email: emails,
+        size: Number(details.size),
+        logoName: logoName(),
+        provider_id: providerId,
+      };
+      window.sessionStorage.setItem(
+        draftKey,
+        JSON.stringify(draft),
+      );
+
+      const { mimeType, extension } = logoFileExtension(details.image);
+      const logoBlob = await (await fetch(details.image)).blob();
+      const logoPath = `${providerId}/logo.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("provider_images")
+        .upload(logoPath, logoBlob, {
+          contentType: mimeType,
+          upsert: true,
+        });
+      if (uploadError) throw uploadError;
+
+      window.sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({ ...draft, logo_path: logoPath }),
+      );
       setSaved(true);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
+        error instanceof Error || (error && typeof error.message === "string")
           ? `Unable to save your provider details: ${error.message}`
           : "Unable to save your provider details.",
       );
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -422,13 +492,14 @@ export default function ProviderSignupPage() {
 
             <div class="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-dust-grey-700 pt-5 sm:flex-row sm:items-center">
               <p class="text-xs leading-5 text-dust-grey-300">
-                Your details are saved as a temporary draft on this device.
+                Business details are saved to Supabase. The logo is uploaded to the provider_images bucket.
               </p>
               <button
                 type="submit"
+                disabled={isSubmitting()}
                 class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"
               >
-                Save business details <ArrowRight size={16} aria-hidden="true" />
+                {isSubmitting() ? "Saving business details…" : "Save business details"} <ArrowRight size={16} aria-hidden="true" />
               </button>
             </div>
           </form>
@@ -437,9 +508,9 @@ export default function ProviderSignupPage() {
             <span class="flex size-12 items-center justify-center rounded-2xl bg-hunter-green-500 text-white">
               <Check size={22} aria-hidden="true" />
             </span>
-            <h2 class="mt-4 font-serif text-2xl tracking-[-0.035em]">Business details saved for this session.</h2>
+            <h2 class="mt-4 font-serif text-2xl tracking-[-0.035em]">Business details saved.</h2>
             <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
-              Your details are stored temporarily in this browser. Continue to add your business social links.
+              Your business details are saved in Supabase, and your logo is uploaded to your provider folder in the provider_images bucket.
             </p>
             <div class="mt-5 flex flex-wrap items-center gap-5">
               <button

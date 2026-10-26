@@ -28,10 +28,66 @@
   animation: product-drawer-backdrop-in 180ms ease-out both;
 }
 
+.provider-sidebar-label {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .provider-sidebar {
+    width: 4.5rem;
+    overflow-x: hidden;
+    transition: width 200ms ease;
+  }
+
+  .provider-sidebar:hover,
+  .provider-sidebar:focus-within {
+    width: 16rem;
+    overflow-x: visible;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  }
+
+  .provider-sidebar-label {
+    display: block;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-width 200ms ease, opacity 150ms ease;
+  }
+
+  .provider-sidebar:hover .provider-sidebar-label,
+  .provider-sidebar:focus-within .provider-sidebar-label {
+    max-width: 10rem;
+    opacity: 1;
+  }
+
+  .provider-sidebar-brand,
+  .provider-sidebar-link {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .provider-sidebar:hover .provider-sidebar-brand,
+  .provider-sidebar:focus-within .provider-sidebar-brand,
+  .provider-sidebar:hover .provider-sidebar-link,
+  .provider-sidebar:focus-within .provider-sidebar-link {
+    justify-content: flex-start;
+    padding-inline: 0.75rem;
+  }
+
+  .provider-sidebar-content {
+    width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .product-drawer-panel,
   .product-drawer-backdrop {
     animation: none;
+  }
+
+  .provider-sidebar,
+  .provider-sidebar-label {
+    transition: none;
   }
 }
 
