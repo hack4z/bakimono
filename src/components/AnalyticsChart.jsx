@@ -104,7 +104,7 @@ export default function AnalyticsChart(props) {
       <div
         ref={element}
         role="img"
-        aria-label={props.label}
+
         class={props.class}
         style={props.style}
       >

@@ -335,14 +335,14 @@ export default function ProviderSignupPage(props) {
               <Building2 size={22} aria-hidden="true" />
             </span>
           </div>
-          <div class="mt-6" aria-label="Signup progress">
+          <div class="mt-6">
             <div class="flex items-center justify-between text-xs font-medium text-dust-grey-text">
               <span>Business details</span>
               <span>20%</span>
             </div>
             <div
               role="progressbar"
-              aria-label="Provider signup progress"
+
               aria-valuemin="0"
               aria-valuemax="100"
               aria-valuenow="20"
@@ -460,7 +460,7 @@ export default function ProviderSignupPage(props) {
                     class="block w-full text-sm text-dust-grey-200 file:mr-4 file:rounded-lg file:border-0 file:bg-hunter-green-500 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-hunter-green-400"
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
-                    aria-label="Choose business logo"
+
                     required={!form().image && !logoPath()}
                     onChange={handleLogoChange}
                   />

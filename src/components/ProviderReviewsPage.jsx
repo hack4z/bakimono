@@ -79,7 +79,7 @@ function ReviewCard(props) {
             <p class="mt-1 text-xs text-dust-grey-text">{formatReviewDate(props.review.created_at)}</p>
           </div>
         </div>
-        <div class="flex items-center gap-2" aria-label={`Rating ${rating()} out of 5`}>
+        <div class="flex items-center gap-2">
           <span class="flex items-center gap-0.5 text-amber-500" aria-hidden="true">
             <For each={Array.from({ length: 5 })}>{(_, index) => (
               <Star
@@ -375,14 +375,14 @@ export default function ProviderReviewsPage() {
           </div>
         </header>
 
-        <section aria-label="Review filters" class="mt-6 flex flex-wrap items-end gap-3 rounded-2xl border border-dust-grey-600 bg-dry-sage-900 p-4">
+        <section class="mt-6 flex flex-wrap items-end gap-3 rounded-2xl border border-dust-grey-600 bg-dry-sage-900 p-4">
           <label class="grid min-w-56 flex-1 gap-1 text-xs font-medium text-dust-grey-text">
             <span>Search this page</span>
             <span class="flex h-10 items-center gap-2 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 focus-within:border-hunter-green-500 focus-within:ring-2 focus-within:ring-hunter-green-500/15">
               <Search size={16} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
               <input
                 type="search"
-                aria-label="Search reviews on this page"
+
                 value={searchQuery()}
                 onInput={(event) => setSearchQuery(event.currentTarget.value)}
                 placeholder="Search comments, customers, products"
@@ -393,7 +393,7 @@ export default function ProviderReviewsPage() {
           <label class="grid gap-1 text-xs font-medium text-dust-grey-text">
             <span>Rating</span>
             <select
-              aria-label="Filter reviews by rating"
+
               class="h-10 min-w-40 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-100 outline-none transition focus:border-hunter-green-500 focus:ring-2 focus:ring-hunter-green-500/15"
               value={ratingFilter()}
               onChange={changeRatingFilter}
@@ -406,7 +406,7 @@ export default function ProviderReviewsPage() {
             <span class="flex h-10 items-center gap-2 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 focus-within:border-hunter-green-500 focus-within:ring-2 focus-within:ring-hunter-green-500/15">
               <ArrowDownUp size={15} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
               <select
-                aria-label="Sort reviews"
+
                 value={sortOrder()}
                 onChange={(event) => setSortOrder(event.currentTarget.value)}
                 class="min-w-36 bg-transparent text-sm text-dust-grey-100 outline-none"
@@ -456,7 +456,7 @@ export default function ProviderReviewsPage() {
         </Show>
 
         <Show when={loading() && reviews().length === 0}>
-          <div aria-label="Loading reviews" aria-busy="true" class="mt-5 grid gap-4">
+          <div aria-busy="true" class="mt-5 grid gap-4">
             <For each={Array.from({ length: 3 })}>{() => (
               <div class="h-44 animate-pulse rounded-3xl border border-dust-grey-600 bg-dry-sage-900" />
             )}</For>
@@ -483,7 +483,7 @@ export default function ProviderReviewsPage() {
             <div class="flex items-center gap-2">
               <button
                 type="button"
-                aria-label="Previous reviews"
+
                 disabled={page() === 0 || loading()}
                 onClick={() => changePage(page() - 1)}
                 class="flex size-9 items-center justify-center rounded-xl border border-dust-grey-600 text-dust-grey-200 transition hover:bg-dust-grey-800 disabled:cursor-not-allowed disabled:opacity-40"
@@ -495,7 +495,7 @@ export default function ProviderReviewsPage() {
               </span>
               <button
                 type="button"
-                aria-label="Next reviews"
+
                 disabled={page() + 1 >= pageCount() || loading()}
                 onClick={() => changePage(page() + 1)}
                 class="flex size-9 items-center justify-center rounded-xl border border-dust-grey-600 text-dust-grey-200 transition hover:bg-dust-grey-800 disabled:cursor-not-allowed disabled:opacity-40"

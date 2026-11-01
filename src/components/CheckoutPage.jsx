@@ -411,7 +411,7 @@ export default function CheckoutPage() {
                     <div class="flex items-center rounded-xl border border-dust-grey-600 bg-dust-grey-900">
                       <button
                         type="button"
-                        aria-label="Decrease quantity"
+
                         onClick={() => setQuantity((value) => Math.max(1, value - 1))}
                         disabled={quantity() <= 1 || isRequestingPayment() || paymentState() === "pending"}
                         class="flex size-10 items-center justify-center text-dust-grey-200 transition hover:text-hunter-green-400 disabled:cursor-not-allowed disabled:opacity-40"
@@ -435,7 +435,7 @@ export default function CheckoutPage() {
                       />
                       <button
                         type="button"
-                        aria-label="Increase quantity"
+
                         onClick={() => setQuantity((value) => Math.min(Number(item().quantity), value + 1))}
                         disabled={quantity() >= Number(item().quantity) || isRequestingPayment() || paymentState() === "pending"}
                         class="flex size-10 items-center justify-center text-dust-grey-200 transition hover:text-hunter-green-400 disabled:cursor-not-allowed disabled:opacity-40"
@@ -633,7 +633,7 @@ export default function CheckoutPage() {
           >
             <button
               type="button"
-              aria-label="Close payment status"
+
               onClick={() => setShowPendingPopup(false)}
               class="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full text-dust-grey-text transition hover:bg-dust-grey-800 hover:text-dust-grey-100"
             >
@@ -680,7 +680,7 @@ export default function CheckoutPage() {
           >
             <button
               type="button"
-              aria-label="Close payment QR code"
+
               onClick={cancelQrPayment}
               class="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full text-dust-grey-text transition hover:bg-dust-grey-800 hover:text-dust-grey-100"
             >
@@ -736,7 +736,7 @@ export default function CheckoutPage() {
           >
             <button
               type="button"
-              aria-label="Close payment confirmation"
+
               onClick={() => setShowSuccessPopup(false)}
               class="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full text-dust-grey-text transition hover:bg-dust-grey-800 hover:text-dust-grey-100"
             >

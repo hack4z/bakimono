@@ -354,13 +354,13 @@ export default function ProviderCalendarPage() {
             <div class="flex flex-wrap items-center gap-3">
               <h2 class="min-w-52 font-serif text-2xl">{formatMonth(month())}</h2>
               <div class="flex items-center gap-2">
-                <button type="button" onClick={() => changeMonth(-1)} aria-label="Previous month" class="flex size-10 items-center justify-center rounded-xl border border-dust-grey-600 text-dust-grey-100 transition hover:bg-dry-sage-900">
+                <button type="button" onClick={() => changeMonth(-1)} class="flex size-10 items-center justify-center rounded-xl border border-dust-grey-600 text-dust-grey-100 transition hover:bg-dry-sage-900">
                   <ChevronLeft size={18} aria-hidden="true" />
                 </button>
                 <button type="button" onClick={goToToday} class="inline-flex h-10 items-center gap-2 rounded-xl border border-dust-grey-600 px-3 text-sm font-medium text-dust-grey-100 transition hover:bg-dry-sage-900">
                   <RotateCcw size={15} aria-hidden="true" /> Today
                 </button>
-                <button type="button" onClick={() => changeMonth(1)} aria-label="Next month" class="flex size-10 items-center justify-center rounded-xl border border-dust-grey-600 text-dust-grey-100 transition hover:bg-dry-sage-900">
+                <button type="button" onClick={() => changeMonth(1)} class="flex size-10 items-center justify-center rounded-xl border border-dust-grey-600 text-dust-grey-100 transition hover:bg-dry-sage-900">
                   <ChevronRight size={18} aria-hidden="true" />
                 </button>
               </div>
@@ -368,7 +368,7 @@ export default function ProviderCalendarPage() {
             <div class="flex flex-wrap items-center gap-2">
               <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
                 <span>Type</span>
-                <select aria-label="Filter calendar by type" value={typeFilter()} onChange={(event) => { setTypeFilter(event.currentTarget.value); setSelectedRecordId(""); }} class="bg-transparent text-sm text-dust-grey-100 outline-none">
+                <select value={typeFilter()} onChange={(event) => { setTypeFilter(event.currentTarget.value); setSelectedRecordId(""); }} class="bg-transparent text-sm text-dust-grey-100 outline-none">
                   <option value="all">All activity</option>
                   <option value="booking">Bookings</option>
                   <option value="order">Orders</option>
@@ -376,7 +376,7 @@ export default function ProviderCalendarPage() {
               </label>
               <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
                 <span>Status</span>
-                <select aria-label="Filter calendar by status" value={statusFilter()} onChange={(event) => { setStatusFilter(event.currentTarget.value); setSelectedRecordId(""); }} class="bg-transparent text-sm capitalize text-dust-grey-100 outline-none">
+                <select value={statusFilter()} onChange={(event) => { setStatusFilter(event.currentTarget.value); setSelectedRecordId(""); }} class="bg-transparent text-sm capitalize text-dust-grey-100 outline-none">
                   <option value="all">All statuses</option>
                   <For each={statuses}>{(status) => <option value={status}>{status}</option>}</For>
                 </select>
@@ -400,7 +400,6 @@ export default function ProviderCalendarPage() {
                     <button
                       type="button"
                       onClick={() => selectDate(date)}
-                      aria-label={`${formatFullDate(date)}${dayRecords().length ? `, ${dayRecords().length} order or booking events` : ""}`}
                       aria-pressed={selected()}
                       title={`Select ${formatFullDate(date)}`}
                       class={`absolute inset-0 z-0 flex min-h-full w-full flex-col items-stretch p-1 text-left transition hover:bg-dry-sage-900 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-hunter-green-500 sm:p-2 ${selected() ? "bg-hunter-green-500/15 ring-4 ring-inset ring-hunter-green-500" : ""}`}
@@ -425,7 +424,7 @@ export default function ProviderCalendarPage() {
                           return (
                             <A
                               href={`/provider/dashboard/orders-bookings?recordId=${encodeURIComponent(record.entry_id)}`}
-                              aria-label={`Open ${record.type} for ${productName}`}
+
                               title={`Open ${record.type}: ${productName}`}
                               class={`pointer-events-auto relative z-20 w-full truncate rounded-md border px-1.5 py-1 text-[10px] font-medium leading-tight hover:brightness-95 focus-visible:outline-2 focus-visible:outline-hunter-green-500 sm:px-2 sm:text-xs ${eventClass(record)}`}
                             >
@@ -438,7 +437,7 @@ export default function ProviderCalendarPage() {
                       <Show when={dayRecords().length > 2}>
                         <A
                           href={`/provider/dashboard/orders-bookings?date=${encodeURIComponent(dateKey(date))}`}
-                          aria-label={`Open all ${dayRecords().length - 2} more events for ${formatFullDate(date)}`}
+
                           class="pointer-events-auto relative z-20 px-1 text-[10px] font-semibold text-dust-grey-text hover:text-hunter-green-500 sm:text-xs"
                         >
                           +{dayRecords().length - 2} more
@@ -583,7 +582,7 @@ export default function ProviderCalendarPage() {
                 </div>
                 <button
                   type="button"
-                  aria-label="Close record form"
+
                   onClick={closeRecordDrawer}
                   disabled={recordSaveLoading()}
                   class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800 disabled:opacity-50"

@@ -591,12 +591,12 @@ export default function ProviderVerificationPage(props) {
           <p class="mt-3 max-w-2xl text-sm leading-6 text-dust-grey-200">
             Select your legal structure and provide the relevant identity and registration documents.
           </p>
-          <div class="mt-6" aria-label="Signup progress">
+          <div class="mt-6">
             <div class="flex items-center justify-between text-xs font-medium text-dust-grey-text">
               <span>Business verification</span>
               <span>80%</span>
             </div>
-            <div role="progressbar" aria-label="Provider signup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80" class="mt-2 h-2 overflow-hidden rounded-full bg-dry-sage-700">
+            <div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80" class="mt-2 h-2 overflow-hidden rounded-full bg-dry-sage-700">
               <div class="h-full w-4/5 rounded-full bg-hunter-green-500" />
             </div>
           </div>
@@ -827,7 +827,7 @@ function DocumentList(props) {
                   </span>
                   <button
                     type="button"
-                    aria-label={`Remove ${document.name}`}
+
                     onClick={() => props.onRemove(props.name, document.id)}
                     class="flex size-8 shrink-0 items-center justify-center rounded-lg text-dust-grey-text transition hover:bg-rose-50 hover:text-rose-700"
                   >

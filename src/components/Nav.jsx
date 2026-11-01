@@ -51,7 +51,7 @@ export default function Nav() {
   return (
     <header class="border-b border-dust-grey-700 bg-dust-grey-900">
       <nav
-        aria-label="Main navigation"
+
         class="mx-auto flex h-19 max-w-360 items-center justify-between px-5 sm:px-8 lg:px-12"
       >
         <A href="/" class="group flex items-center gap-3">
@@ -121,7 +121,7 @@ export default function Nav() {
           )}
           <details class="relative md:hidden">
             <summary
-              aria-label="Open menu"
+
               class="flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-200 marker:hidden"
             >
               <Menu size={19} aria-hidden="true" />

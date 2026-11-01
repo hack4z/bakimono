@@ -149,7 +149,7 @@ export default function ProviderMemberSignupPage() {
           description="Set up your account to join the provider workspace."
         />
         <section class="mt-8 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-7">
-          <Show when={!loading()} fallback={<LoaderCircle class="mx-auto animate-spin text-hunter-green-500" aria-label="Loading invitation" />}>
+          <Show when={!loading()} fallback={<LoaderCircle class="mx-auto animate-spin text-hunter-green-500" />}>
             <Show when={!errorMessage()} fallback={
               <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
                 {errorMessage()}
@@ -201,7 +201,7 @@ function PasswordField(props) {
         <button
           type="button"
           onClick={props.onToggle}
-          aria-label={props.visible ? `Hide ${props.label.toLowerCase()}` : `Show ${props.label.toLowerCase()}`}
+
           class="absolute right-3 top-1/2 -translate-y-1/2 text-dust-grey-text"
         >
           <Show when={props.visible} fallback={<Eye size={18} aria-hidden="true" />}>

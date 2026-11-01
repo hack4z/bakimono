@@ -90,7 +90,7 @@ export default function ProviderSignupBanner(props) {
     }>
       <aside
         role={status() === "error" ? "status" : "alert"}
-        aria-label={status() === "unverified" ? "Verify your email" : "Complete provider signup"}
+
         class="mb-5 mt-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border-2 border-hunter-green-300 bg-dry-sage-900 p-5 text-dust-grey-100 shadow-[0_12px_30px_rgba(58,90,64,0.16)] sm:p-6"
       >
         <div class="flex items-start gap-3">

@@ -202,18 +202,18 @@ export default function ProviderStaffPage() {
           <div class="grid gap-3 border-b border-dust-grey-700 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-[minmax(16rem,1fr)_repeat(2,minmax(11rem,0.5fr))]">
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3">
               <Search size={16} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
-              <input type="search" aria-label="Search staff" value={searchQuery()} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search name, role, or phone" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text" />
+              <input type="search" value={searchQuery()} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search name, role, or phone" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text" />
             </label>
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
               <span>Role</span>
-              <select aria-label="Filter by staff role" value={roleFilter()} onChange={(event) => setRoleFilter(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
+              <select value={roleFilter()} onChange={(event) => setRoleFilter(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
                 <option value="all">All roles</option><For each={roles()}>{(role) => <option value={role}>{role}</option>}</For>
               </select>
             </label>
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
               <ArrowDownUp size={15} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
               <span>Sort</span>
-              <select aria-label="Sort staff" value={sortBy()} onChange={(event) => setSortBy(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
+              <select value={sortBy()} onChange={(event) => setSortBy(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
                 <option value="name-asc">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="role-asc">Role A–Z</option><option value="newest">Newest added</option><option value="oldest">Oldest added</option>
               </select>
             </label>
@@ -281,7 +281,7 @@ export default function ProviderStaffPage() {
                 </div>
                 <button
                   type="button"
-                  aria-label="Close invitation form"
+
                   onClick={closeInvitation}
                   disabled={inviteLoading()}
                   class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800 disabled:opacity-50"

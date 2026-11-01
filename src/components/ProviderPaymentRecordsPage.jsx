@@ -185,17 +185,17 @@ export default function ProviderPaymentRecordsPage() {
           <p role="alert" class="mt-4 rounded-xl border border-rose-400/40 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:bg-rose-950/30 dark:text-rose-200">{copyError()}</p>
         </Show>
 
-        <section aria-label="Payment record filters" class="mt-5 flex flex-wrap items-end gap-3 rounded-2xl border border-dust-grey-600 bg-dry-sage-900 p-4">
+        <section class="mt-5 flex flex-wrap items-end gap-3 rounded-2xl border border-dust-grey-600 bg-dry-sage-900 p-4">
           <label class="grid min-w-56 flex-1 gap-1 text-xs font-medium text-dust-grey-text">
             <span>Search records</span>
             <span class="flex h-10 items-center gap-2 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 focus-within:border-hunter-green-500 focus-within:ring-2 focus-within:ring-hunter-green-500/15">
               <Search size={16} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
-              <input type="search" aria-label="Search payment records" value={query()} onInput={(event) => setQuery(event.currentTarget.value)} placeholder="Purchaser, product, amount, receipt" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-400" />
+              <input type="search" value={query()} onInput={(event) => setQuery(event.currentTarget.value)} placeholder="Purchaser, product, amount, receipt" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-400" />
             </span>
           </label>
           <label class="grid gap-1 text-xs font-medium text-dust-grey-text">
             <span>Status</span>
-            <select aria-label="Filter payment records by status" value={statusFilter()} onChange={(event) => setStatusFilter(event.currentTarget.value)} class="h-10 min-w-36 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm capitalize text-dust-grey-100 outline-none focus:border-hunter-green-500">
+            <select value={statusFilter()} onChange={(event) => setStatusFilter(event.currentTarget.value)} class="h-10 min-w-36 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm capitalize text-dust-grey-100 outline-none focus:border-hunter-green-500">
               <option value="all">All statuses</option>
               <For each={statuses()}>{(status) => <option value={status}>{status}</option>}</For>
             </select>
@@ -204,7 +204,7 @@ export default function ProviderPaymentRecordsPage() {
             <span>Sort by</span>
             <span class="flex h-10 items-center gap-2 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3">
               <ArrowDownUp size={15} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
-              <select aria-label="Sort payment records" value={sortOrder()} onChange={(event) => setSortOrder(event.currentTarget.value)} class="min-w-36 bg-transparent text-sm text-dust-grey-100 outline-none">
+              <select value={sortOrder()} onChange={(event) => setSortOrder(event.currentTarget.value)} class="min-w-36 bg-transparent text-sm text-dust-grey-100 outline-none">
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
                 <option value="status">Status</option>
@@ -216,7 +216,7 @@ export default function ProviderPaymentRecordsPage() {
           </button>
         </section>
 
-        <section aria-label="Transaction table" class="mt-5 overflow-hidden rounded-3xl border border-dust-grey-600 bg-dry-sage-900">
+        <section class="mt-5 overflow-hidden rounded-3xl border border-dust-grey-600 bg-dry-sage-900">
           <Show when={loading()}>
             <LoadingState label="Loading payment records…" />
           </Show>
@@ -253,7 +253,7 @@ export default function ProviderPaymentRecordsPage() {
                         <Show when={transaction.product_id} fallback={<span class="text-dust-grey-400">—</span>}>
                           <span class="inline-flex max-w-64 items-center gap-2">
                             <span class="truncate font-mono text-xs text-dust-grey-text" title={transaction.product_id}>{transaction.product_id}</span>
-                            <button type="button" aria-label="Copy product ID" title={copiedValue() === transaction.product_id ? "Copied" : "Copy product ID"} onClick={() => void copyIdentifier(transaction.product_id)} class="shrink-0 rounded-md p-1 text-hunter-green-500 hover:bg-dust-grey-800 focus-visible:outline-2 focus-visible:outline-hunter-green-500">
+                            <button type="button" title={copiedValue() === transaction.product_id ? "Copied" : "Copy product ID"} onClick={() => void copyIdentifier(transaction.product_id)} class="shrink-0 rounded-md p-1 text-hunter-green-500 hover:bg-dust-grey-800 focus-visible:outline-2 focus-visible:outline-hunter-green-500">
                               <Show when={copiedValue() === transaction.product_id} fallback={<Copy size={14} aria-hidden="true" />}><Check size={14} aria-hidden="true" /></Show>
                             </button>
                           </span>
@@ -271,7 +271,7 @@ export default function ProviderPaymentRecordsPage() {
                         <Show when={transaction.checkout_id} fallback={<span class="text-dust-grey-400">—</span>}>
                           <span class="inline-flex max-w-64 items-center gap-2">
                             <span class="truncate font-mono text-xs text-dust-grey-text" title={transaction.checkout_id}>{transaction.checkout_id}</span>
-                            <button type="button" aria-label="Copy checkout ID" title={copiedValue() === transaction.checkout_id ? "Copied" : "Copy checkout ID"} onClick={() => void copyIdentifier(transaction.checkout_id)} class="shrink-0 rounded-md p-1 text-hunter-green-500 hover:bg-dust-grey-800 focus-visible:outline-2 focus-visible:outline-hunter-green-500">
+                            <button type="button" title={copiedValue() === transaction.checkout_id ? "Copied" : "Copy checkout ID"} onClick={() => void copyIdentifier(transaction.checkout_id)} class="shrink-0 rounded-md p-1 text-hunter-green-500 hover:bg-dust-grey-800 focus-visible:outline-2 focus-visible:outline-hunter-green-500">
                               <Show when={copiedValue() === transaction.checkout_id} fallback={<Copy size={14} aria-hidden="true" />}><Check size={14} aria-hidden="true" /></Show>
                             </button>
                           </span>
@@ -327,7 +327,7 @@ export default function ProviderPaymentRecordsPage() {
                 </div>
                 <button
                   type="button"
-                  aria-label="Close receipt details"
+
                   onClick={() => setSelectedReceipt(null)}
                   class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800"
                 >
@@ -351,7 +351,7 @@ export default function ProviderPaymentRecordsPage() {
                       <span class="min-w-0 break-all font-mono text-sm text-dust-grey-100">{transaction().merchant_id}</span>
                       <button
                         type="button"
-                        aria-label="Copy merchant ID"
+
                         title={copiedValue() === transaction().merchant_id ? "Copied" : "Copy merchant ID"}
                         onClick={() => void copyIdentifier(transaction().merchant_id)}
                         class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-dust-grey-600 text-hunter-green-500 transition hover:bg-dust-grey-800 focus-visible:outline-2 focus-visible:outline-hunter-green-500"

@@ -1,21 +1,21 @@
 export default function BrandBanner(props) {
   return (
-    <section class="relative mb-7 overflow-hidden rounded-7 border border-hunter-green-400 bg-linear-to-br from-hunter-green-500 via-pine-teal-500 to-fern-500 p-5 text-white shadow-sm sm:p-7 lg:p-8">
+    <section class="relative mb-7 overflow-hidden rounded-[32px] border border-hunter-green-400 bg-linear-to-br from-hunter-green-500 via-pine-teal-500 to-fern-500 p-5 text-white shadow-sm sm:rounded-[40px] sm:p-7 lg:p-8">
       <div class="pointer-events-none absolute -right-12 -top-20 size-56 rounded-full border border-white/15" />
       <div class="pointer-events-none absolute -bottom-32 right-28 size-64 rounded-full border border-white/10" />
-      <div class="relative flex flex-wrap items-center justify-between gap-5">
+      <div class="relative flex flex-col items-stretch justify-between gap-5 sm:flex-row sm:flex-wrap sm:items-center">
         <div class="min-w-0 flex-1">
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/75">
             {props.eyebrow}
           </p>
-          <h1 class="mt-1 font-serif text-3xl tracking-[-0.04em] text-white sm:text-[38px]">
+          <h1 class="mt-1 font-serif text-[28px] leading-tight tracking-[-0.04em] text-white sm:text-[38px]">
             {props.title}
           </h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-white/80">
             {props.description}
           </p>
         </div>
-        <div class="flex shrink-0 items-center gap-4">
+        <div class="flex shrink-0 flex-wrap items-center gap-3 sm:gap-4">
           {props.children}
           <img
             src="/logo_pack/logo-horizontal-on-dark.svg"

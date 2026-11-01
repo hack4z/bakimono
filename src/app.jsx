@@ -4,6 +4,8 @@ import { Dynamic } from "solid-js/web";
 import Nav from "~/components/Nav";
 import AppNavigation from "~/components/AppNavigation";
 import ProviderNavigation from "~/components/ProviderNavigation";
+import ThemeToggle from "~/components/ThemeToggle";
+import InstallAppButton from "~/components/InstallAppButton";
 import { getCurrentProviderOnboardingStep } from "~/utils/provider-onboarding";
 import { supabase } from "~/utils/supabase-client";
 import "./app.css";
@@ -191,9 +193,18 @@ function ProviderAccessGuard(props) {
   onMount(async () => {
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
+      if (authError) {
+        setState("unauthenticated");
+        queueMicrotask(() => {
+          window.location.replace("/provider/login");
+        });
+        return;
+      }
       if (!authData.user) {
-        setState("allowed");
+        setState("unauthenticated");
+        queueMicrotask(() => {
+          window.location.replace("/provider/login");
+        });
         return;
       }
 
@@ -203,6 +214,9 @@ function ProviderAccessGuard(props) {
         .eq("member_id", authData.user.id)
         .maybeSingle();
       if (membershipError) throw membershipError;
+      if (!membership?.provider_id) {
+        throw new Error("Your account is not linked to a provider workspace.");
+      }
       const normalizedRole = membership?.role?.trim().toLowerCase();
       const allowedRoles = props.allowedRoles ?? [];
       if (
@@ -306,28 +320,35 @@ function ProviderAccessGuard(props) {
           <main class="min-h-screen bg-dust-grey-900 px-6 py-24 text-center text-dust-grey-100">
             <section class="mx-auto max-w-xl rounded-3xl border border-dust-grey-600 bg-dust-grey-800 p-8">
               <Show
-                when={state() === "forbidden"}
+                when={state() === "unauthenticated"}
                 fallback={
                   <Show
-                    when={state() === "banned"}
+                    when={state() === "forbidden"}
                     fallback={
-                      <>
-                        <h1 class="font-serif text-3xl">Provider access unavailable</h1>
-                        <p role="alert" class="mt-4 text-sm text-dust-grey-200">{errorMessage()}</p>
-                      </>
+                      <Show
+                        when={state() === "banned"}
+                        fallback={
+                          <>
+                            <h1 class="font-serif text-3xl">Provider access unavailable</h1>
+                            <p role="alert" class="mt-4 text-sm text-dust-grey-200">{errorMessage()}</p>
+                          </>
+                        }
+                      >
+                        <h1 class="font-serif text-3xl">Provider access restricted</h1>
+                        <p role="alert" class="mt-4 text-sm text-dust-grey-200">
+                          You have been banned by {providerName()}.
+                        </p>
+                      </Show>
                     }
                   >
-                    <h1 class="font-serif text-3xl">Provider access restricted</h1>
+                    <h1 class="font-serif text-3xl">{props.accessTitle ?? "Members access restricted"}</h1>
                     <p role="alert" class="mt-4 text-sm text-dust-grey-200">
-                      You have been banned by {providerName()}.
+                      {props.accessDescription ?? "Only provider owners and managers can access member management."}
                     </p>
                   </Show>
                 }
               >
-                <h1 class="font-serif text-3xl">{props.accessTitle ?? "Members access restricted"}</h1>
-                <p role="alert" class="mt-4 text-sm text-dust-grey-200">
-                  {props.accessDescription ?? "Only provider owners and managers can access member management."}
-                </p>
+                <Navigate href="/provider/login" />
               </Show>
               <A href="/provider/settings" class="mt-6 inline-flex rounded-full bg-hunter-green-500 px-5 py-3 text-sm font-semibold text-white hover:bg-hunter-green-400">
                 Open provider settings
@@ -365,10 +386,24 @@ function AppShell(props) {
       <Show when={!usesPublicNavigation() && !isProviderSubPage()}>
         <AppNavigation />
       </Show>
+      <Show when={hasAppNavigation()}>
+        <A
+          href="/"
+          title="Bakimono home"
+          class="fixed left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex size-10 items-center justify-center rounded-full border border-dust-grey-600 bg-dust-grey-900 shadow-sm transition hover:border-fern-500 hover:bg-dry-sage-900 lg:left-5 lg:top-5"
+        >
+          <img src="/logo_pack/emblem.svg" alt="" class="size-7 dark:hidden" width="64" height="64" />
+          <img src="/logo_pack/emblem-on-dark.svg" alt="" class="hidden size-7 dark:block" width="64" height="64" />
+        </A>
+        <div class="fixed right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex items-center gap-2 lg:right-5 lg:top-5">
+          <InstallAppButton />
+          <ThemeToggle />
+        </div>
+      </Show>
       <Show when={isProviderSubPage()}>
         <ProviderNavigation />
       </Show>
-      <div class={`${hasAppNavigation() || hasProviderNavigation() ? "pb-20 lg:pb-0" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "lg:pl-18" : ""}`}>
+      <div class={`${hasAppNavigation() ? "bg-dust-grey-800 pt-10 lg:pt-12" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "pb-20 lg:pb-0" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "lg:pl-18" : ""}`}>
         <Suspense>
           {props.children}
         </Suspense>

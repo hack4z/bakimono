@@ -191,18 +191,18 @@ export default function ProviderPartnersPage() {
           <div class="grid gap-3 border-b border-dust-grey-700 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-[minmax(16rem,1fr)_repeat(2,minmax(11rem,0.5fr))]">
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3">
               <Search size={16} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
-              <input type="search" aria-label="Search partners" value={searchQuery()} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search name or ID details" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text" />
+              <input type="search" value={searchQuery()} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search name or ID details" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text" />
             </label>
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
               <span>ID type</span>
-              <select aria-label="Filter by ID type" value={idTypeFilter()} onChange={(event) => setIdTypeFilter(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
+              <select value={idTypeFilter()} onChange={(event) => setIdTypeFilter(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
                 <option value="all">All types</option><For each={idTypes()}>{(idType) => <option value={idType}>{idType}</option>}</For>
               </select>
             </label>
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
               <ArrowDownUp size={15} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
               <span>Sort</span>
-              <select aria-label="Sort partner records" value={sortBy()} onChange={(event) => setSortBy(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
+              <select value={sortBy()} onChange={(event) => setSortBy(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
                 <option value="newest">Newest added</option><option value="oldest">Oldest added</option><option value="name-asc">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="id-type-asc">ID type A–Z</option><option value="id-number-asc">ID number</option>
               </select>
             </label>
@@ -284,7 +284,7 @@ export default function ProviderPartnersPage() {
                 </div>
                 <button
                   type="button"
-                  aria-label="Close invitation form"
+
                   onClick={closeInvitation}
                   disabled={inviteLoading()}
                   class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800 disabled:opacity-50"

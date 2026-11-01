@@ -244,14 +244,14 @@ export default function ProviderGalleryPage(props) {
           <p class="mt-3 max-w-2xl text-sm leading-6 text-dust-grey-200">
             Add a few photos of your business, rooms, food, or experiences. This gallery is optional and you can continue without photos.
           </p>
-          <div class="mt-6" aria-label="Signup progress">
+          <div class="mt-6">
             <div class="flex items-center justify-between text-xs font-medium text-dust-grey-text">
               <span>Photo gallery</span>
               <span>60%</span>
             </div>
             <div
               role="progressbar"
-              aria-label="Provider signup progress"
+
               aria-valuemin="0"
               aria-valuemax="100"
               aria-valuenow="60"
@@ -363,7 +363,7 @@ export default function ProviderGalleryPage(props) {
                         <figcaption class="truncate px-3 py-2 text-xs text-dust-grey-text">{photo.name}</figcaption>
                         <button
                           type="button"
-                          aria-label={`Remove ${photo.name}`}
+
                           onClick={() => removePhoto(photo.id)}
                           class="absolute right-2 top-2 flex size-9 items-center justify-center rounded-full bg-dust-grey-900/90 text-dust-grey-100 shadow transition hover:text-rose-600"
                         >

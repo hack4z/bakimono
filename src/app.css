@@ -92,6 +92,9 @@
 .dark {
   color-scheme: dark;
 
+  --color-dust-grey-text: #C7C3B2;
+  --color-fern-text: #C0D4BF;
+
   --color-dust-grey-100: #f8f7f5;
   --color-dust-grey-200: #e2dfd7;
   --color-dust-grey-300: #b6b09c;

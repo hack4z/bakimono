@@ -339,11 +339,11 @@ function MetricCard(props) {
 
 function AnalyticsFilters(props) {
   return (
-    <section aria-label="Analytics filters" class="mt-6 flex flex-wrap items-end gap-3 rounded-2xl border border-dust-grey-600 bg-dry-sage-900 p-4">
+    <section class="mt-6 flex flex-wrap items-end gap-3 rounded-2xl border border-dust-grey-600 bg-dry-sage-900 p-4">
       <label class="grid gap-1 text-xs font-medium text-dust-grey-text">
         <span>Date range · UTC</span>
         <select
-          aria-label="Date range"
+
           class={inputClass}
           value={props.range()}
           onChange={(event) => {
@@ -358,7 +358,7 @@ function AnalyticsFilters(props) {
       <label class="grid gap-1 text-xs font-medium text-dust-grey-text">
         <span>Records</span>
         <select
-          aria-label="Record type"
+
           class={inputClass}
           value={props.recordType()}
           onChange={(event) => props.setRecordType(event.currentTarget.value)}
@@ -371,7 +371,7 @@ function AnalyticsFilters(props) {
       <label class="grid gap-1 text-xs font-medium text-dust-grey-text">
         <span>Current status</span>
         <select
-          aria-label="Current status"
+
           class={inputClass}
           value={props.status()}
           onChange={(event) => props.setStatus(event.currentTarget.value)}
@@ -383,7 +383,7 @@ function AnalyticsFilters(props) {
       <label class="grid min-w-48 flex-1 gap-1 text-xs font-medium text-dust-grey-text sm:max-w-xs">
         <span>Product</span>
         <select
-          aria-label="Product"
+
           class={inputClass}
           value={props.productId()}
           onChange={(event) => props.setProductId(event.currentTarget.value)}
@@ -908,7 +908,7 @@ export default function ProviderAnalyticsPage() {
               No marketplace records match these filters. Marketplace metrics and charts are empty; payment totals reflect the reporting date range.
             </p>
           </Show>
-            <section aria-label="Marketplace overview metrics" class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            <section class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
               <MetricCard
                 label="Orders created"
                 value={formatNumber(summary().orders)}
@@ -960,21 +960,21 @@ export default function ProviderAnalyticsPage() {
               />
             </section>
 
-            <section aria-label="Marketplace activity trend" class="mt-5 rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
+            <section class="mt-5 rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
               <ChartHeading eyebrow="01 · Marketplace demand" title="Orders & bookings over time" description="Creation activity · click a day to inspect it" />
               <Show when={trendPoints().some((point) => point.orders + point.bookings > 0)} fallback={<ChartEmptyState text="No activity in this reporting window." />}>
                 <ActivityTrendChart points={trendPoints} onSelectDay={setSelectedDay} />
               </Show>
             </section>
 
-            <section aria-label="Confirmed M-PESA payments" class="mt-5 rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
+            <section class="mt-5 rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
               <ChartHeading eyebrow="02 · Confirmed payments" title="Paid M-PESA over time" description="Successful payment totals by payment creation date · KES · record filters do not apply" />
               <Show when={paymentTrendPoints().some((point) => Number(point.amount ?? 0) > 0)} fallback={<ChartEmptyState text="No confirmed M-PESA payments in this reporting window." />}>
                 <PaymentTrendChart points={paymentTrendPoints} />
               </Show>
             </section>
 
-            <section aria-label="Lifecycle status comparison" class="mt-5 rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
+            <section class="mt-5 rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
               <ChartHeading eyebrow="03 · Current lifecycle" title="Status comparison" description="Click a segment to filter every panel by that current status" />
               <Show when={Number(summary().orders) + Number(summary().bookings) > 0} fallback={<ChartEmptyState text="No lifecycle statuses to compare." />}>
                 <StatusComparisonChart snapshot={snapshot} onSelectStatus={setStatus} />
@@ -982,7 +982,7 @@ export default function ProviderAnalyticsPage() {
             </section>
 
             <section class="mt-5 grid gap-5 xl:grid-cols-2">
-              <article aria-label="Product demand leaderboard" class="rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
+              <article class="rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
                 <ChartHeading eyebrow="03 · Product demand" title="Most requested products" description="Top ten by record count · order and booking counts compared" />
                 <Show when={snapshot().products.length > 0} fallback={<ChartEmptyState text="No product demand matches these filters." />}>
                   <ProductDemandChart products={productOptions} onSelectProduct={setProductId} />
@@ -991,13 +991,13 @@ export default function ProviderAnalyticsPage() {
             </section>
 
             <section class="mt-5 grid gap-5 xl:grid-cols-2">
-              <article aria-label="Operational pressure by record age" class="rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
+              <article class="rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
                 <ChartHeading eyebrow="05 · Operational pressure" title="Open record age" description="Pending + ongoing records grouped by age since creation, not status duration" />
                 <Show when={workloadTotal() > 0} fallback={<ChartEmptyState text="No pending or ongoing records in this view." />}>
                   <WorkloadAgeChart workload={() => snapshot().workload} />
                 </Show>
               </article>
-              <article aria-label="Customer repeat activity" class="rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
+              <article class="rounded-3xl border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-6">
                 <ChartHeading eyebrow="06 · Customer activity" title="First-time & returning" description="Returning means at least two qualifying records in this selected period" />
                 <Show when={summary().customers > 0} fallback={<ChartEmptyState text="No distinct customers in this view." />}>
                   <CustomerRepeatChart summary={summary} />

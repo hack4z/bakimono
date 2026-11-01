@@ -192,14 +192,14 @@ export default function BookingsPage() {
 
         <Show when={user()}>
           <section
-            aria-label="Filter bookings and orders"
+
             class="grid gap-3 rounded-3xl border border-dry-sage-700 bg-dry-sage-900 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center sm:p-5"
           >
             <label class="flex h-11 items-center gap-3 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3">
               <Search size={17} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
               <input
                 type="search"
-                aria-label="Search bookings and orders"
+
                 value={query()}
                 onInput={(event) => setQuery(event.currentTarget.value)}
                 placeholder="Search product or reference"
@@ -209,7 +209,7 @@ export default function BookingsPage() {
             <label class="flex h-11 items-center gap-2 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-200">
               <span>Type</span>
               <select
-                aria-label="Filter by type"
+
                 value={recordType()}
                 onChange={(event) => setRecordType(event.currentTarget.value)}
                 class="bg-transparent text-sm outline-none"
@@ -222,7 +222,7 @@ export default function BookingsPage() {
             <label class="flex h-11 items-center gap-2 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-200">
               <span>Status</span>
               <select
-                aria-label="Filter by status"
+
                 value={status()}
                 onChange={(event) => setStatus(event.currentTarget.value)}
                 class="max-w-36 bg-transparent text-sm outline-none"
@@ -241,7 +241,7 @@ export default function BookingsPage() {
             <label class="flex h-11 items-center gap-2 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-200">
               <span>Sort</span>
               <select
-                aria-label="Sort bookings and orders"
+
                 value={sortBy()}
                 onChange={(event) => setSortBy(event.currentTarget.value)}
                 class="bg-transparent text-sm outline-none"
@@ -308,13 +308,13 @@ export default function BookingsPage() {
           </div>
 
           <Show when={filteredRecords().length > 0}>
-            <section aria-label="Your bookings and orders" class="mt-4 grid gap-4">
+            <section class="mt-4 grid gap-4">
               <For each={filteredRecords()}>
                 {(record) => (
                   <article
                     role="button"
                     tabindex="0"
-                    aria-label={`View ${record.recordType} details for ${record.product?.name || "product"}`}
+
                     onClick={() => {
                       setCopiedReference("");
                       setCopyError("");
@@ -415,7 +415,7 @@ export default function BookingsPage() {
                     </Show>
                     <button
                       type="button"
-                      aria-label="Close booking details"
+
                       onClick={() => setSelectedRecord(null)}
                       class="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-dust-grey-900/95 text-dust-grey-200 shadow-sm transition hover:bg-dust-grey-900"
                     >
@@ -456,7 +456,7 @@ export default function BookingsPage() {
                           <span class="break-all">{record().entry_id}</span>
                           <button
                             type="button"
-                            aria-label={copiedReference() === record().entry_id ? "Reference copied" : "Copy reference"}
+
                             title={copiedReference() === record().entry_id ? "Copied" : "Copy reference"}
                             onClick={() => copyReference(record().entry_id)}
                             class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dust-grey-600 px-2 py-1 text-xs font-semibold text-hunter-green-500 transition hover:bg-dry-sage-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"

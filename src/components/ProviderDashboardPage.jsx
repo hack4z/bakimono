@@ -495,31 +495,31 @@ export default function ProviderDashboardPage() {
           <div class="grid gap-3 border-b border-dust-grey-700 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-[minmax(16rem,1fr)_repeat(4,minmax(8rem,0.55fr))]">
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3">
               <Search size={16} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
-              <input type="search" aria-label="Search orders and bookings" value={searchQuery()} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search product, client, or reference" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text" />
+              <input type="search" value={searchQuery()} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search product, client, or reference" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text" />
             </label>
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
               <ListFilter size={15} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
               <span>Type</span>
-              <select aria-label="Filter by record type" value={typeFilter()} onChange={(event) => setTypeFilter(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
+              <select value={typeFilter()} onChange={(event) => setTypeFilter(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
                 <option value="all">All</option><option value="booking">Bookings</option><option value="order">Orders</option>
               </select>
             </label>
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
               <span>Status</span>
-              <select aria-label="Filter by status" value={statusFilter()} onChange={(event) => setStatusFilter(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm capitalize text-dust-grey-100 outline-none">
+              <select value={statusFilter()} onChange={(event) => setStatusFilter(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm capitalize text-dust-grey-100 outline-none">
                 <option value="all">All</option><For each={statuses}>{(status) => <option value={status}>{status}</option>}</For>
               </select>
             </label>
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
               <span>Product</span>
-              <select aria-label="Filter by product" value={productFilter()} onChange={(event) => setProductFilter(event.currentTarget.value)} class="min-w-0 flex-1 truncate bg-transparent text-sm text-dust-grey-100 outline-none">
+              <select value={productFilter()} onChange={(event) => setProductFilter(event.currentTarget.value)} class="min-w-0 flex-1 truncate bg-transparent text-sm text-dust-grey-100 outline-none">
                 <option value="all">All</option><For each={products()}>{(product) => <option value={product.product_id}>{product.name}</option>}</For>
               </select>
             </label>
             <label class="flex h-10 items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs text-dust-grey-text">
               <ArrowDownUp size={15} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
               <span>Sort</span>
-              <select aria-label="Sort orders and bookings" value={sortBy()} onChange={(event) => setSortBy(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
+              <select value={sortBy()} onChange={(event) => setSortBy(event.currentTarget.value)} class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none">
                 <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="product-asc">Product A–Z</option><option value="product-desc">Product Z–A</option><option value="status-asc">Status</option>
               </select>
             </label>
@@ -550,14 +550,14 @@ export default function ProviderDashboardPage() {
                               type="button"
                               onClick={() => void openPaymentDrawer(record)}
                               disabled={record.status === "success" || record.status === "cancelled" || paymentPhoneLoading() || Boolean(paymentRecord())}
-                              aria-label={`Initiate M-PESA payment for ${record.type}`}
+
                               title="Initiate M-PESA payment"
                               class="inline-flex h-9 items-center gap-2 rounded-lg border border-fern-600 bg-fern-900/40 px-2.5 text-xs font-semibold text-fern-300 transition hover:bg-fern-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fern-500 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <Smartphone size={15} aria-hidden="true" />
                               <span>Initiate payment</span>
                             </button>
-                            <button type="button" onClick={() => void cancelRecord(record)} disabled={record.status === "cancelled" || Boolean(updatingRecordId())} aria-label={`Cancel ${record.type}`} title="Cancel" class="inline-flex size-9 items-center justify-center rounded-lg border border-dust-grey-600 text-dust-grey-200 transition hover:bg-dust-grey-800 hover:text-dust-grey-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dust-grey-300 disabled:cursor-not-allowed disabled:opacity-50">
+                            <button type="button" onClick={() => void cancelRecord(record)} disabled={record.status === "cancelled" || Boolean(updatingRecordId())} title="Cancel" class="inline-flex size-9 items-center justify-center rounded-lg border border-dust-grey-600 text-dust-grey-200 transition hover:bg-dust-grey-800 hover:text-dust-grey-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dust-grey-300 disabled:cursor-not-allowed disabled:opacity-50">
                               <Show when={updatingRecordId() === `${record.type}:${record.entry_id}`} fallback={<Ban size={16} aria-hidden="true" />}>
                                 <LoaderCircle size={16} class="animate-spin" aria-hidden="true" />
                               </Show>
@@ -600,7 +600,7 @@ export default function ProviderDashboardPage() {
                 </div>
                 <button
                   type="button"
-                  aria-label="Close record editor"
+
                   onClick={closeRecordDrawer}
                   disabled={recordSaveLoading()}
                   class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800 disabled:opacity-50"
@@ -829,7 +829,7 @@ export default function ProviderDashboardPage() {
                     </div>
                     <button
                       type="button"
-                      aria-label="Close payment form"
+
                       onClick={closePaymentDrawer}
                       disabled={paymentSubmitting() || paymentPhoneLoading()}
                       class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800 disabled:opacity-50"

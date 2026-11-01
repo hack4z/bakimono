@@ -157,7 +157,7 @@ export default function ProviderPartnerSignupPage() {
           description="Confirm your identity to join the provider workspace."
         />
         <section class="mt-8 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-7">
-          <Show when={!loading()} fallback={<LoaderCircle class="mx-auto animate-spin text-hunter-green-500" aria-label="Loading invitation" />}>
+          <Show when={!loading()} fallback={<LoaderCircle class="mx-auto animate-spin text-hunter-green-500" />}>
             <Show when={!errorMessage()} fallback={
               <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
                 {errorMessage()}
@@ -194,7 +194,7 @@ export default function ProviderPartnerSignupPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
-                      aria-label={showPassword() ? "Hide password" : "Show password"}
+
                       class="absolute right-3 top-1/2 -translate-y-1/2 text-dust-grey-text"
                     >
                       <Show when={showPassword()} fallback={<Eye size={18} aria-hidden="true" />}>
@@ -218,7 +218,7 @@ export default function ProviderPartnerSignupPage() {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword((visible) => !visible)}
-                      aria-label={showConfirmPassword() ? "Hide password" : "Show password"}
+
                       class="absolute right-3 top-1/2 -translate-y-1/2 text-dust-grey-text"
                     >
                       <Show when={showConfirmPassword()} fallback={<Eye size={18} aria-hidden="true" />}>

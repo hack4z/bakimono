@@ -119,7 +119,7 @@ export default function ProviderAccountSignupPage() {
                   />
                   <button
                     type="button"
-                    aria-label={showPassword() ? "Hide password" : "Show password"}
+
                     aria-pressed={showPassword()}
                     onClick={() => setShowPassword(!showPassword())}
                     class="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-dust-grey-text transition hover:text-dust-grey-100"

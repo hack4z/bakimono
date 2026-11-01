@@ -557,7 +557,7 @@ export default function ProviderStorefrontPage() {
         <div class="fixed inset-0 z-65">
           <button
             type="button"
-            aria-label="Close storefront editor"
+
             onClick={() => setIsEditorOpen(false)}
             class="absolute inset-0 bg-pine-teal-100/55 backdrop-blur-sm"
           />
@@ -574,7 +574,7 @@ export default function ProviderStorefrontPage() {
               </div>
               <button
                 type="button"
-                aria-label="Close storefront editor"
+
                 onClick={() => setIsEditorOpen(false)}
                 class="flex size-10 shrink-0 items-center justify-center rounded-full text-dust-grey-text transition hover:bg-dry-sage-900 hover:text-dust-grey-100"
               >
@@ -669,7 +669,7 @@ export default function ProviderStorefrontPage() {
                             <img src={file.url} alt="" class="size-full object-cover" width="800" height="600" />
                             <button
                               type="button"
-                              aria-label={`Remove gallery photo ${file.name}`}
+
                               disabled={isGallerySaving()}
                               onClick={() => void removeGalleryPhoto(file)}
                               class="absolute right-2 top-2 flex size-9 items-center justify-center rounded-full bg-dust-grey-900 text-dust-grey-100 shadow transition hover:bg-red-600 hover:text-white disabled:opacity-60"

@@ -1,6 +1,6 @@
 import { A, useSearchParams } from "@solidjs/router";
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
-import { ArrowRight, Heart, PackageSearch, Search, Star, X } from "lucide-solid";
+import { ArrowRight, ArrowUpDown, Heart, PackageSearch, Search, SlidersHorizontal, Star, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
 import LoadingState from "~/components/LoadingState";
 import { supabase } from "~/utils/supabase-client";
@@ -29,6 +29,8 @@ export default function ExplorePage() {
     String(searchParams.providers || "").split(",").filter(Boolean),
   ));
   const [providerQuery, setProviderQuery] = createSignal(searchParams.provider || "");
+  const [sortOpen, setSortOpen] = createSignal(false);
+  const [filtersOpen, setFiltersOpen] = createSignal(false);
 
   createEffect(() => {
     setActiveType(searchParams.type || "all");
@@ -236,101 +238,132 @@ export default function ExplorePage() {
         />
 
         <section
-          aria-label="Search and filter products"
+
           class="rounded-3xl border border-dry-sage-700 bg-dry-sage-900 p-4 sm:p-5"
         >
           <label class="flex h-12 items-center gap-3 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4">
             <Search size={18} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
             <input
               type="search"
-              aria-label="Search products"
+
               value={query()}
               onInput={(event) => setQueryFromInput(event.currentTarget.value)}
               placeholder="Search products, descriptions, or types"
               class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text"
             />
           </label>
-          <div class="mt-4 flex flex-wrap items-center gap-2">
-            <div class="flex min-w-0 flex-1 flex-wrap gap-2">
-              <For each={types()}>
-                {(type) => (
-                  <button
-                    type="button"
-                    aria-pressed={activeType() === type}
-                    onClick={() => setActiveTypeFromQuery(type)}
-                    class={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                      activeType() === type
-                        ? "border-hunter-green-500 bg-hunter-green-500 text-white"
-                        : "border-dry-sage-700 bg-dust-grey-900 text-dust-grey-200 hover:border-fern-500"
-                    }`}
-                  >
-                    {type === "all" ? "Everything" : type}
-                  </button>
-                )}
-              </For>
-            </div>
-            <label class="flex h-10 items-center gap-2 rounded-full border border-dust-grey-600 bg-dust-grey-900 px-3 text-xs font-medium text-dust-grey-200">
-              <span>Sort</span>
-              <select
-                aria-label="Sort products"
-                value={sortBy()}
-                onChange={(event) => setSortFromQuery(event.currentTarget.value)}
-                class="max-w-32 bg-transparent text-sm outline-none"
-              >
-                <option value="newest">Newest</option>
-                <option value="rating">Top rated</option>
-                <option value="price-low">Price: low to high</option>
-                <option value="price-high">Price: high to low</option>
-              </select>
-            </label>
+          <div class="mt-4 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              title="Sort products"
+              onClick={() => setSortOpen((open) => !open)}
+              class={`flex size-10 items-center justify-center rounded-full border transition ${
+                sortOpen()
+                  ? "border-hunter-green-500 bg-hunter-green-500 text-white"
+                  : "border-dust-grey-600 bg-dust-grey-900 text-dust-grey-200 hover:border-fern-500"
+              }`}
+            >
+              <ArrowUpDown size={18} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              title="Filter products"
+              onClick={() => setFiltersOpen((open) => !open)}
+              class={`flex size-10 items-center justify-center rounded-full border transition ${
+                filtersOpen() || activeType() !== "all" || selectedProviderIds().size > 0
+                  ? "border-hunter-green-500 bg-hunter-green-500 text-white"
+                  : "border-dust-grey-600 bg-dust-grey-900 text-dust-grey-200 hover:border-fern-500"
+              }`}
+            >
+              <SlidersHorizontal size={18} aria-hidden="true" />
+            </button>
           </div>
-          <Show when={providers().length > 0}>
-            <fieldset class="mt-4">
-              <legend class="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-dust-grey-text">
-                Providers
-              </legend>
-              <div class="flex flex-wrap gap-2">
-                <input
-                  type="search"
-                  aria-label="Search provider names"
-                  value={providerQuery()}
-                  onInput={(event) => setProviderQueryFromInput(event.currentTarget.value)}
-                  placeholder="Search providers"
-                  class="h-10 w-full rounded-full border border-dust-grey-600 bg-dust-grey-900 px-4 text-xs text-dust-grey-100 outline-none placeholder:text-dust-grey-text sm:w-64"
-                />
-                <button
-                  type="button"
-                  aria-pressed={selectedProviderIds().size === 0}
-                  onClick={() => {
-                    setSelectedProviderIds(new Set());
-                    updateQuery({ providers: "" });
-                  }}
-                  class={`rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
-                    selectedProviderIds().size === 0
-                      ? "border-hunter-green-500 bg-hunter-green-500 text-white"
-                      : "border-dry-sage-700 bg-dust-grey-900 text-dust-grey-200 hover:border-fern-500"
-                  }`}
+          <Show when={sortOpen()}>
+            <div class="mt-3 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 p-3">
+              <label class="flex items-center justify-between gap-3 text-sm font-medium text-dust-grey-200">
+                <span>Sort by</span>
+                <select
+                  value={sortBy()}
+                  onChange={(event) => setSortFromQuery(event.currentTarget.value)}
+                  class="h-10 rounded-xl border border-dust-grey-600 bg-dust-grey-800 px-3 text-sm text-dust-grey-100 outline-none"
                 >
-                  All providers
-                </button>
-                <For each={visibleProviders()}>
-                  {([providerId, providerName]) => (
+                  <option value="newest">Newest</option>
+                  <option value="rating">Top rated</option>
+                  <option value="price-low">Price: low to high</option>
+                  <option value="price-high">Price: high to low</option>
+                </select>
+              </label>
+            </div>
+          </Show>
+          <Show when={filtersOpen()}>
+            <div class="mt-3 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 p-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-dust-grey-text">Category</p>
+              <div class="flex flex-wrap gap-2">
+                <For each={types()}>
+                  {(type) => (
                     <button
                       type="button"
-                      aria-pressed={selectedProviderIds().has(providerId)}
-                      onClick={() => toggleProvider(providerId)}
+                      aria-pressed={activeType() === type}
+                      onClick={() => setActiveTypeFromQuery(type)}
                       class={`rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
-                        selectedProviderIds().has(providerId)
+                        activeType() === type
                           ? "border-hunter-green-500 bg-hunter-green-500 text-white"
                           : "border-dry-sage-700 bg-dust-grey-900 text-dust-grey-200 hover:border-fern-500"
                       }`}
                     >
-                      {providerName}
+                      {type === "all" ? "Everything" : type}
                     </button>
                   )}
                 </For>
               </div>
-            </fieldset>
+              <Show when={providers().length > 0}>
+                <fieldset class="mt-4">
+                  <legend class="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-dust-grey-text">
+                    Providers
+                  </legend>
+                  <div class="flex flex-wrap gap-2">
+                    <input
+                      type="search"
+                      value={providerQuery()}
+                      onInput={(event) => setProviderQueryFromInput(event.currentTarget.value)}
+                      placeholder="Search providers"
+                      class="h-10 w-full rounded-full border border-dust-grey-600 bg-dust-grey-900 px-4 text-xs text-dust-grey-100 outline-none placeholder:text-dust-grey-text sm:w-64"
+                    />
+                    <button
+                      type="button"
+                      aria-pressed={selectedProviderIds().size === 0}
+                      onClick={() => {
+                        setSelectedProviderIds(new Set());
+                        updateQuery({ providers: "" });
+                      }}
+                      class={`rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
+                        selectedProviderIds().size === 0
+                          ? "border-hunter-green-500 bg-hunter-green-500 text-white"
+                          : "border-dry-sage-700 bg-dust-grey-900 text-dust-grey-200 hover:border-fern-500"
+                      }`}
+                    >
+                      All providers
+                    </button>
+                    <For each={visibleProviders()}>
+                      {([providerId, providerName]) => (
+                        <button
+                          type="button"
+                          aria-pressed={selectedProviderIds().has(providerId)}
+                          onClick={() => toggleProvider(providerId)}
+                          class={`rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
+                            selectedProviderIds().has(providerId)
+                              ? "border-hunter-green-500 bg-hunter-green-500 text-white"
+                              : "border-dry-sage-700 bg-dust-grey-900 text-dust-grey-200 hover:border-fern-500"
+                          }`}
+                        >
+                          {providerName}
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                </fieldset>
+              </Show>
+            </div>
           </Show>
         </section>
 
@@ -370,22 +403,13 @@ export default function ExplorePage() {
 
         <Show when={!isLoading() && !errorMessage() && filteredProducts().length > 0}>
           <section
-            aria-label="Products"
-            class="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
+
+            class="mt-5 grid grid-cols-2 gap-2 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3"
           >
             <For each={filteredProducts()}>
               {(product) => (
                 <article
-                  role="button"
-                  tabindex="0"
-                  aria-label={`View ${product.name || "product"} details`}
                   onClick={() => setSelectedProduct(product)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setSelectedProduct(product);
-                    }
-                  }}
                   class="group cursor-pointer overflow-hidden rounded-3xl border border-dust-grey-600 bg-dust-grey-900 text-left shadow-sm transition duration-300 hover:-translate-y-1 hover:border-dry-sage-500 hover:shadow-xl hover:shadow-dust-grey-100/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"
                 >
                   <div class="relative aspect-[1.45] overflow-hidden bg-dry-sage-900">
@@ -408,7 +432,7 @@ export default function ExplorePage() {
                     </Show>
                     <button
                       type="button"
-                      aria-label={favouriteIds().has(product.product_id) ? `Remove ${product.name || "product"} from favourites` : `Add ${product.name || "product"} to favourites`}
+
                       aria-pressed={favouriteIds().has(product.product_id)}
                       disabled={pendingFavouriteIds().has(product.product_id)}
                       onClick={(event) => {
@@ -428,10 +452,10 @@ export default function ExplorePage() {
                       />
                     </button>
                   </div>
-                  <div class="p-4">
-                    <div class="flex items-start justify-between gap-3">
+                  <div class="p-2 sm:p-4">
+                    <div class="flex items-start justify-between gap-1 sm:gap-3">
                       <div class="min-w-0">
-                        <h3 class="truncate font-serif text-[19px] font-semibold tracking-[-0.02em] text-dust-grey-100">
+                        <h3 class="truncate font-serif text-sm font-semibold tracking-[-0.02em] text-dust-grey-100 sm:text-[19px]">
                           {product.name || "Untitled product"}
                         </h3>
                         <Show when={product.capacity}>
@@ -450,17 +474,25 @@ export default function ExplorePage() {
                         </span>
                       </Show>
                     </div>
-                    <p class="mt-3 line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-dust-grey-200">
-                      {product.description || "A little more to discover. Check back for details."}
-                    </p>
-                    <div class="mt-4 flex items-center justify-between gap-3 border-t border-dust-grey-700 pt-3">
-                      <span class="font-semibold text-hunter-green-500">{formatPrice(product.price)}</span>
-                      <span class="text-xs font-medium text-dust-grey-text">
+                    <div class="mt-3 flex flex-col border-t border-dust-grey-700 pt-2 sm:mt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pt-3">
+                      <span class="text-sm font-semibold text-hunter-green-500 sm:text-base">{formatPrice(product.price)}</span>
+                      <span class="mt-1 text-[10px] font-medium text-dust-grey-text sm:mt-0 sm:text-xs">
                         {Number(product.quantity) > 0
                           ? `${product.quantity} available`
                           : "Currently unavailable"}
                       </span>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedProduct(product);
+                      }}
+                      class="mt-2 flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-hunter-green-500 text-xs font-semibold text-white transition hover:bg-hunter-green-400 sm:mt-3 sm:h-10 sm:gap-2 sm:text-sm"
+                    >
+                      View more
+                      <ArrowRight size={16} aria-hidden="true" />
+                    </button>
                   </div>
                 </article>
               )}
@@ -514,7 +546,7 @@ export default function ExplorePage() {
                   </Show>
                   <button
                     type="button"
-                    aria-label="Close product details"
+
                     onClick={() => setSelectedProduct(null)}
                     class="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-dust-grey-900/95 text-dust-grey-200 shadow-sm transition hover:bg-dust-grey-900"
                   >
@@ -522,7 +554,7 @@ export default function ExplorePage() {
                   </button>
                   <button
                     type="button"
-                    aria-label={favouriteIds().has(product().product_id) ? "Remove from favourites" : "Add to favourites"}
+
                     aria-pressed={favouriteIds().has(product().product_id)}
                     disabled={pendingFavouriteIds().has(product().product_id)}
                     onClick={() => void toggleFavourite(product().product_id)}

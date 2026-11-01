@@ -364,7 +364,7 @@ export default function ProviderInventoryPage() {
         </Show>
 
         <Show when={editingProductId()}>
-          <button type="button" aria-label="Close product editor" onClick={resetForm} class="animate-product-drawer-backdrop-in motion-reduce:animate-none fixed inset-0 z-50 cursor-default bg-black/60" />
+          <button type="button" onClick={resetForm} class="animate-product-drawer-backdrop-in motion-reduce:animate-none fixed inset-0 z-50 cursor-default bg-black/60" />
         </Show>
         <form
           onSubmit={saveProduct}
@@ -422,7 +422,7 @@ export default function ProviderInventoryPage() {
                   ref={imageInput}
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
-                  aria-label="Upload product cover image"
+
                   onChange={(event) => selectImage(event.currentTarget.files?.[0] ?? null)}
                   class="min-w-0 flex-1 text-xs file:mr-2 file:rounded-md file:border-0 file:bg-dry-sage-900 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-hunter-green-500"
                 />
@@ -463,7 +463,7 @@ export default function ProviderInventoryPage() {
               </Show>
               <label class="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-dust-grey-600 bg-dust-grey-900 px-3 sm:w-64">
                 <Search size={16} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
-                <input type="search" aria-label="Search inventory" value={searchQuery()} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search products" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text" />
+                <input type="search" value={searchQuery()} onInput={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Search products" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text" />
               </label>
             </div>
           </div>
@@ -500,8 +500,8 @@ export default function ProviderInventoryPage() {
                           <td class="px-4 py-4 tabular-nums">{product.quantity}</td>
                           <td class="px-4 py-4 sm:px-6">
                             <div class="flex justify-end gap-2">
-                              <button type="button" onClick={() => beginEdit(product)} aria-label={`Edit ${product.name}`} class="inline-flex size-9 items-center justify-center rounded-lg border border-dust-grey-600 text-hunter-green-500 transition hover:bg-dry-sage-900"><Pencil size={16} aria-hidden="true" /></button>
-                              <button type="button" onClick={() => requestProductDelete(product)} aria-label={`Delete ${product.name}`} class="inline-flex size-9 items-center justify-center rounded-lg border border-hunter-green-500 bg-hunter-green-500 text-white transition hover:border-hunter-green-400 hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"><Trash2 size={16} aria-hidden="true" /></button>
+                              <button type="button" onClick={() => beginEdit(product)} class="inline-flex size-9 items-center justify-center rounded-lg border border-dust-grey-600 text-hunter-green-500 transition hover:bg-dry-sage-900"><Pencil size={16} aria-hidden="true" /></button>
+                              <button type="button" onClick={() => requestProductDelete(product)} class="inline-flex size-9 items-center justify-center rounded-lg border border-hunter-green-500 bg-hunter-green-500 text-white transition hover:border-hunter-green-400 hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"><Trash2 size={16} aria-hidden="true" /></button>
                             </div>
                           </td>
                         </tr>

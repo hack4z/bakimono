@@ -414,7 +414,7 @@ export default function SettingsPage() {
         <section
           role={user() ? "button" : undefined}
           tabindex={user() ? 0 : undefined}
-          aria-label={user() ? "Edit your profile" : "Your profile"}
+
           onClick={() => {
             if (user()) openProfileEditor();
           }}
@@ -551,7 +551,7 @@ export default function SettingsPage() {
                 </div>
                 <button
                   type="button"
-                  aria-label="Close profile editor"
+
                   disabled={isSavingProfile()}
                   onClick={() => setIsEditingProfile(false)}
                   class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800 disabled:opacity-50"
@@ -814,7 +814,7 @@ export function ProviderSettingsPage() {
           title="Settings."
           description="Manage preferences, review our policies, or get help."
         />
-        <nav aria-label="Provider settings sections" class="mt-8 grid gap-3 sm:grid-cols-2">
+        <nav class="mt-8 grid gap-3 sm:grid-cols-2">
           <For each={sections}>
             {({ href, title, description, Icon }) => (
               <A

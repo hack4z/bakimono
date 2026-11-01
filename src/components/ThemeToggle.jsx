@@ -38,11 +38,11 @@ export default function ThemeToggle() {
   return (
     <button
       type="button"
-      aria-label={isDark() ? "Switch to light mode" : "Switch to dark mode"}
+
       aria-pressed={isDark()}
       title={isDark() ? "Switch to light mode" : "Switch to dark mode"}
       onClick={toggleTheme}
-      class="flex size-10 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-200 transition hover:border-fern-500 hover:bg-dry-sage-900 hover:text-hunter-green-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"
+      class="flex size-10 items-center justify-center rounded-full border border-dust-grey-600 bg-dust-grey-900 text-dust-grey-200 shadow-sm transition hover:border-fern-500 hover:bg-dry-sage-900 hover:text-hunter-green-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"
     >
       {isDark() ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
     </button>

@@ -74,7 +74,7 @@ export default function PasswordRecoveryPage() {
               New password
               <div class="relative mt-2">
                 <input type={showPassword() ? "text" : "password"} autocomplete="new-password" required minLength="8" value={password()} onInput={(event) => setPassword(event.currentTarget.value)} class="h-13 w-full rounded-xl border border-dust-grey-600 px-4 pr-12 text-sm text-dust-grey-100 outline-none focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900" />
-                <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(!showPassword())} class="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-dust-grey-text">
+                <button type="button" onClick={() => setShowPassword(!showPassword())} class="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-dust-grey-text">
                   {showPassword() ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>

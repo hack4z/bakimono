@@ -188,12 +188,12 @@ export default function ProviderPaymentPage(props) {
           <p class="mt-3 max-w-2xl text-sm leading-6 text-dust-grey-200">
             Bakimono currently supports M-PESA for provider payments. Choose how customers should send payments to your business.
           </p>
-          <div class="mt-6" aria-label="Signup progress">
+          <div class="mt-6">
             <div class="flex items-center justify-between text-xs font-medium text-dust-grey-text">
               <span>Payment details</span>
               <span>100%</span>
             </div>
-            <div role="progressbar" aria-label="Provider signup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" class="mt-2 h-2 overflow-hidden rounded-full bg-dry-sage-700">
+            <div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" class="mt-2 h-2 overflow-hidden rounded-full bg-dry-sage-700">
               <div class="h-full w-full rounded-full bg-hunter-green-500" />
             </div>
           </div>

@@ -20,6 +20,7 @@ import {
   UsersRound,
   Wallet,
   QrCode,
+  X,
 } from "lucide-solid";
 import { createSignal, For, onMount, Show } from "solid-js";
 import ThemeToggle from "~/components/ThemeToggle";
@@ -73,11 +74,36 @@ export default function ProviderNavigation() {
   const [paymentsOpen, setPaymentsOpen] = createSignal(location.pathname.startsWith("/provider/payments"));
   const [analyticsOpen, setAnalyticsOpen] = createSignal(location.pathname.startsWith("/provider/analytics"));
   const [settingsOpen, setSettingsOpen] = createSignal(location.pathname.startsWith("/provider/settings"));
+  const [mobileMenu, setMobileMenu] = createSignal(null);
   const dashboardActive = () => location.pathname.startsWith("/provider/dashboard");
   const membersActive = () => location.pathname.startsWith("/provider/members");
   const paymentsActive = () => location.pathname.startsWith("/provider/payments");
   const analyticsActive = () => location.pathname.startsWith("/provider/analytics");
   const settingsActive = () => location.pathname.startsWith("/provider/settings");
+  const openMobileMenu = (section) => {
+    setMobileMenu((current) => current === section ? null : section);
+  };
+  const mobileMenuLinks = () => {
+    if (mobileMenu() === "dashboard") return providerLinks;
+    if (mobileMenu() === "analytics") return analyticsLinks.filter((link) =>
+      link.href !== "/provider/analytics/sales-performance" || canViewFinancials(),
+    );
+    if (mobileMenu() === "members") return memberLinks.filter((link) =>
+      link.href !== "/provider/members/partners" || canViewPartners(),
+    );
+    if (mobileMenu() === "payments") return paymentLinks.filter((link) =>
+      (link.href !== "/provider/payments/records" || canViewFinancials())
+      && (link.href !== "/provider/payments/wallet" || canViewWallet()),
+    );
+    return settingsLinks;
+  };
+  const mobileMenuTitle = () => ({
+    dashboard: "Dashboard",
+    analytics: "Analytics",
+    members: "Members",
+    payments: "Payments",
+    settings: "Settings",
+  })[mobileMenu()] ?? "More";
 
   onMount(async () => {
     try {
@@ -104,13 +130,13 @@ export default function ProviderNavigation() {
 
   return (
     <nav
-      aria-label="Provider navigation"
+
       class="group/sidebar fixed inset-x-0 bottom-0 z-50 border-t border-dust-grey-600 bg-dust-grey-900/95 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur-lg motion-reduce:transition-none lg:inset-y-0 lg:left-0 lg:right-auto lg:flex lg:w-[4.5rem] lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:border-r lg:border-t-0 lg:px-1 lg:py-6 lg:transition-[width] lg:duration-200 lg:hover:w-64 lg:hover:overflow-x-visible lg:hover:shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] lg:has-[:focus-visible]:w-64 lg:has-[:focus-visible]:overflow-x-visible lg:has-[:focus-visible]:shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)]"
     >
       <div class="flex items-center justify-around lg:h-full lg:w-full lg:flex-col lg:items-stretch lg:justify-start lg:gap-5">
         <A
           href="/provider"
-          aria-label="Provider dashboard"
+
           title="Provider dashboard"
           class="hidden h-12 items-center justify-center gap-3 rounded-2xl transition hover:bg-dry-sage-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500 lg:flex lg:px-0 lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3 lg:group-has-[:focus-visible]/sidebar:justify-start lg:group-has-[:focus-visible]/sidebar:px-3"
         >
@@ -122,9 +148,86 @@ export default function ProviderNavigation() {
           </span>
         </A>
 
+        <Show when={mobileMenu()}>
+          <section
+            class="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-[60] max-h-[65dvh] overflow-y-auto rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-3 shadow-2xl lg:hidden"
+          >
+            <div class="mb-2 flex items-center justify-between px-1">
+              <h2 class="font-serif text-lg font-semibold text-dust-grey-100">{mobileMenuTitle()}</h2>
+              <button
+                type="button"
+                title="Close menu"
+                onClick={() => setMobileMenu(null)}
+                class="flex size-9 items-center justify-center rounded-full bg-dry-sage-900 text-dust-grey-200"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <div class="grid gap-2">
+              <For each={mobileMenuLinks()}>
+                {(link) => (
+                  <A
+                    href={link.href}
+                    onClick={() => setMobileMenu(null)}
+                    activeClass="bg-hunter-green-500 text-white"
+                    inactiveClass="bg-dust-grey-800 text-dust-grey-100 hover:bg-dry-sage-900"
+                    class="flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold"
+                  >
+                    <link.Icon size={20} strokeWidth={1.8} aria-hidden="true" />
+                    <span>{link.label}</span>
+                  </A>
+                )}
+              </For>
+            </div>
+          </section>
+        </Show>
+
+        <section class="flex w-full items-center justify-around gap-1 lg:hidden">
+          <button
+            type="button"
+            onClick={() => openMobileMenu("dashboard")}
+            title="Dashboard"
+            class={`flex size-12 items-center justify-center rounded-2xl ${dashboardActive() ? "bg-hunter-green-500 text-white" : "text-dust-grey-text"}`}
+          >
+            <LayoutDashboard size={21} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openMobileMenu("analytics")}
+            title="Analytics"
+            class={`flex size-12 items-center justify-center rounded-2xl ${analyticsActive() ? "bg-hunter-green-500 text-white" : "text-dust-grey-text"}`}
+          >
+            <BarChart3 size={21} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openMobileMenu("members")}
+            title="Members"
+            class={`flex size-12 items-center justify-center rounded-2xl ${membersActive() ? "bg-hunter-green-500 text-white" : "text-dust-grey-text"}`}
+          >
+            <UsersRound size={21} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openMobileMenu("payments")}
+            title="Payments"
+            class={`flex size-12 items-center justify-center rounded-2xl ${paymentsActive() ? "bg-hunter-green-500 text-white" : "text-dust-grey-text"}`}
+          >
+            <CreditCard size={21} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openMobileMenu("settings")}
+            title="Settings"
+            class={`flex size-12 items-center justify-center rounded-2xl ${settingsActive() ? "bg-hunter-green-500 text-white" : "text-dust-grey-text"}`}
+          >
+            <Settings size={21} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+        </section>
+
         <section
-          aria-label="Provider pages"
-          class="flex items-center justify-around gap-1 lg:w-full lg:flex-col lg:items-stretch lg:justify-start lg:gap-2"
+
+          class="hidden items-center justify-around gap-1 lg:flex lg:w-full lg:flex-col lg:items-stretch lg:justify-start lg:gap-2"
         >
           <h2 class="sr-only">Provider pages</h2>
           <div class="relative lg:w-12 lg:self-center lg:group-hover/sidebar:w-full lg:group-hover/sidebar:self-stretch lg:group-has-[:focus-visible]/sidebar:w-full lg:group-has-[:focus-visible]/sidebar:self-stretch">
@@ -138,20 +241,20 @@ export default function ProviderNavigation() {
               <Settings size={21} strokeWidth={1.8} aria-hidden="true" />
               <span class={`hidden ${sidebarLabelClasses} ${settingsActive() ? "text-hunter-green-500" : ""}`}>Settings</span>
               <ChevronDown
-                class={`absolute right-1 bottom-1 size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${settingsOpen() ? "rotate-180" : ""}`}
+                class={`hidden size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${settingsOpen() ? "rotate-180" : ""}`}
                 aria-hidden="true"
               />
             </button>
             <div
               id="provider-settings-links"
               class={subnavClasses(settingsOpen())}
-              aria-label="Settings sections"
+
             >
               <For each={settingsLinks}>
                 {(link) => (
                   <A
                     href={link.href}
-                    aria-label={link.label}
+
                     title={link.label}
                     activeClass="bg-hunter-green-500 text-white shadow-sm"
                     inactiveClass="text-dust-grey-text hover:bg-dry-sage-900 hover:text-hunter-green-500"
@@ -176,20 +279,20 @@ export default function ProviderNavigation() {
               <LayoutDashboard size={21} strokeWidth={1.8} aria-hidden="true" />
               <span class={`hidden ${sidebarLabelClasses} ${dashboardActive() ? "text-pine-teal-500" : ""}`}>Dashboard</span>
               <ChevronDown
-                class={`absolute right-1 bottom-1 size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${dashboardOpen() ? "rotate-180" : ""}`}
+                class={`hidden size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${dashboardOpen() ? "rotate-180" : ""}`}
                 aria-hidden="true"
               />
             </button>
             <div
               id="provider-dashboard-links"
               class={subnavClasses(dashboardOpen())}
-              aria-label="Dashboard sections"
+
             >
               <For each={providerLinks.slice(0, 3)}>
                 {(link) => (
                   <A
                     href={link.href}
-                    aria-label={link.label}
+
                     title={link.label}
                     activeClass="bg-hunter-green-500 text-white shadow-sm"
                     inactiveClass="text-dust-grey-text hover:bg-dry-sage-900 hover:text-hunter-green-500"
@@ -214,14 +317,14 @@ export default function ProviderNavigation() {
               <BarChart3 size={21} strokeWidth={1.8} aria-hidden="true" />
               <span class={`hidden ${sidebarLabelClasses} ${analyticsActive() ? "text-hunter-green-500" : ""}`}>Analytics</span>
               <ChevronDown
-                class={`absolute right-1 bottom-1 size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${analyticsOpen() ? "rotate-180" : ""}`}
+                class={`hidden size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${analyticsOpen() ? "rotate-180" : ""}`}
                 aria-hidden="true"
               />
             </button>
             <div
               id="provider-analytics-links"
               class={subnavClasses(analyticsOpen())}
-              aria-label="Analytics sections"
+
             >
               <For each={analyticsLinks.filter((link) =>
                 link.href !== "/provider/analytics/sales-performance" || canViewFinancials(),
@@ -229,7 +332,7 @@ export default function ProviderNavigation() {
                 {(link) => (
                   <A
                     href={link.href}
-                    aria-label={link.label}
+
                     title={link.label}
                     activeClass="bg-hunter-green-500 text-white shadow-sm"
                     inactiveClass="text-dust-grey-text hover:bg-dry-sage-900 hover:text-hunter-green-500"
@@ -255,18 +358,18 @@ export default function ProviderNavigation() {
               <UsersRound size={21} strokeWidth={1.8} aria-hidden="true" />
               <span class={`hidden ${sidebarLabelClasses} ${membersActive() ? "text-hunter-green-500" : ""}`}>Members</span>
               <ChevronDown
-                class={`absolute right-1 bottom-1 size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${membersOpen() ? "rotate-180" : ""}`}
+                class={`hidden size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${membersOpen() ? "rotate-180" : ""}`}
                 aria-hidden="true"
               />
             </button>
-            <div id="provider-member-links" class={subnavClasses(membersOpen())} aria-label="Member sections">
+            <div id="provider-member-links" class={subnavClasses(membersOpen())}>
               <For each={memberLinks.filter((link) =>
                 link.href !== "/provider/members/partners" || canViewPartners(),
               )}>
                 {(link) => (
                   <A
                     href={link.href}
-                    aria-label={link.label}
+
                     title={link.label}
                     activeClass="bg-hunter-green-500 text-white shadow-sm"
                     inactiveClass="text-dust-grey-text hover:bg-dry-sage-900 hover:text-hunter-green-500"
@@ -292,14 +395,14 @@ export default function ProviderNavigation() {
               <CreditCard size={21} strokeWidth={1.8} aria-hidden="true" />
               <span class={`hidden ${sidebarLabelClasses} ${paymentsActive() ? "text-hunter-green-500" : ""}`}>Payments</span>
               <ChevronDown
-                class={`absolute right-1 bottom-1 size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${paymentsOpen() ? "rotate-180" : ""}`}
+                class={`hidden size-3 shrink-0 transition-transform lg:static lg:hidden lg:ml-auto lg:size-4 lg:group-hover/sidebar:block lg:group-has-[:focus-visible]/sidebar:block ${paymentsOpen() ? "rotate-180" : ""}`}
                 aria-hidden="true"
               />
             </button>
             <div
               id="provider-payment-links"
               class={subnavClasses(paymentsOpen())}
-              aria-label="Payment sections"
+
             >
               <For each={paymentLinks.filter((link) =>
                 (link.href !== "/provider/payments/records" || canViewFinancials())
@@ -308,7 +411,7 @@ export default function ProviderNavigation() {
                 {(link) => (
                   <A
                     href={link.href}
-                    aria-label={link.label}
+
                     title={link.label}
                     activeClass="bg-hunter-green-500 text-white shadow-sm"
                     inactiveClass="text-dust-grey-text hover:bg-dry-sage-900 hover:text-hunter-green-500"
@@ -324,7 +427,7 @@ export default function ProviderNavigation() {
 
         </section>
 
-        <div class="lg:mt-auto lg:mx-auto">
+        <div class="hidden lg:block lg:mt-auto lg:mx-auto">
           <ThemeToggle />
         </div>
       </div>

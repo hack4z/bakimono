@@ -367,14 +367,14 @@ export default function ProviderSocialLinksPage(props) {
           <p class="mt-3 max-w-2xl text-sm leading-6 text-dust-grey-200">
             Help customers find you online. Add a social profile or website, and include as many links as you need.
           </p>
-          <div class="mt-6" aria-label="Signup progress">
+          <div class="mt-6">
             <div class="flex items-center justify-between text-xs font-medium text-dust-grey-text">
               <span>Social links</span>
               <span>40%</span>
             </div>
             <div
               role="progressbar"
-              aria-label="Provider signup progress"
+
               aria-valuemin="0"
               aria-valuemax="100"
               aria-valuenow="40"
@@ -427,7 +427,7 @@ export default function ProviderSocialLinksPage(props) {
                     : "Your social links are saved in Supabase and policy files are uploaded to the private providers bucket. Their storage paths are kept in the temporary browser draft."}
                 </p>
                 <Show when={!skippedForDevelopment() && policies().length > 0}>
-                  <section aria-label="Uploaded policy files" class="mt-6">
+                  <section class="mt-6">
                     <h3 class="text-sm font-semibold">Uploaded policy files</h3>
                     <ul class="mt-3 grid gap-3 sm:grid-cols-2">
                       <For each={policies()}>
@@ -443,7 +443,7 @@ export default function ProviderSocialLinksPage(props) {
                                 {formatFileSize(policy.file?.bytes)} · {policy.storage_path ? "Uploaded" : "Saved"}
                               </span>
                             </span>
-                            <Check size={18} class="shrink-0 text-fern-300" aria-label="Uploaded" />
+                            <Check size={18} class="shrink-0 text-fern-300" />
                           </li>
                         )}
                       </For>
@@ -515,7 +515,7 @@ export default function ProviderSocialLinksPage(props) {
                       </label>
                       <button
                         type="button"
-                        aria-label={`Remove social link ${index + 1}`}
+
                         title="Remove link"
                         disabled={socialLinks().length === 1}
                         onClick={() => setSocialLinks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
@@ -587,7 +587,7 @@ export default function ProviderSocialLinksPage(props) {
                               class="peer sr-only"
                               type="file"
                               accept=".pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                              aria-label={`Choose ${policyLabel(policy.type)} file`}
+
                               onChange={(event) => handlePolicyFileChange(index(), event)}
                             />
                             <label
@@ -616,7 +616,7 @@ export default function ProviderSocialLinksPage(props) {
                           </div>
                           <button
                             type="button"
-                            aria-label={`Remove policy ${index() + 1}`}
+
                             onClick={() => setPolicies((current) => current.filter((_, itemIndex) => itemIndex !== index()))}
                             class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-dust-grey-600 px-3 text-sm font-medium text-dust-grey-200 transition hover:border-rose-400 hover:text-rose-700 sm:w-10 sm:px-0"
                           >

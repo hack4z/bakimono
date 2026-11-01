@@ -218,7 +218,7 @@ export default function ProviderWalletPage() {
           </div>
         </header>
 
-        <section aria-label="Earnings overview" class="mt-6 overflow-hidden rounded-7 border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-7">
+        <section class="mt-6 overflow-hidden rounded-7 border border-dust-grey-600 bg-dry-sage-900 p-5 sm:p-7">
           <div class="flex flex-wrap items-start justify-between gap-5">
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-hunter-green-500">Confirmed earnings · KES</p>
@@ -228,7 +228,7 @@ export default function ProviderWalletPage() {
             <label class="grid gap-1 text-xs font-medium text-dust-grey-text">
               <span>Period</span>
               <select
-                aria-label="Earnings chart period"
+
                 value={range()}
                 onChange={(event) => {
                   const days = Number(event.currentTarget.value);

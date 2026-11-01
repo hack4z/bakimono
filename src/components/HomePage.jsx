@@ -243,7 +243,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section aria-label="For providers" class="mx-auto max-w-360 px-5 py-10 sm:px-8 lg:px-12 lg:py-14">
+      <section class="mx-auto max-w-360 px-5 py-10 sm:px-8 lg:px-12 lg:py-14">
         <div class="relative isolate overflow-hidden rounded-[30px] border border-dry-sage-700 bg-linear-to-br from-dry-sage-900 via-dust-grey-900 to-dry-sage-800 px-6 py-8 shadow-sm sm:px-9 sm:py-10 lg:px-12">
           <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 overflow-hidden sm:block">
             <img

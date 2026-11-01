@@ -364,7 +364,7 @@ export default function DashboardPage() {
                   <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">Action required</p>
                   <h2 id="dashboard-profile-title" class="mt-1 font-serif text-2xl text-dust-grey-100">Complete your profile</h2>
                 </div>
-                <button type="button" aria-label="Close profile editor" disabled={isSavingProfile()} onClick={() => setIsProfileDrawerOpen(false)} class="flex size-10 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text hover:bg-dust-grey-800 disabled:opacity-50">
+                <button type="button" disabled={isSavingProfile()} onClick={() => setIsProfileDrawerOpen(false)} class="flex size-10 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text hover:bg-dust-grey-800 disabled:opacity-50">
                   <X size={18} aria-hidden="true" />
                 </button>
               </div>
@@ -474,13 +474,13 @@ export default function DashboardPage() {
           </div>
           <form
             onSubmit={handleSearch}
-            class="relative mt-7 flex gap-2 rounded-[22px] border border-dust-grey-600 bg-white p-2 text-dust-grey-100 shadow-[0_12px_32px_rgba(49,46,36,0.08)]"
+            class="relative mt-7 flex flex-col gap-2 rounded-[22px] border border-dust-grey-600 bg-white p-2 text-dust-grey-100 shadow-[0_12px_32px_rgba(49,46,36,0.08)] sm:flex-row"
           >
             <label class="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-3">
               <Search size={18} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
               <input
                 type="search"
-                aria-label="Search experiences"
+
                 value={query()}
                 onInput={(event) => setQuery(event.currentTarget.value)}
                 placeholder="What would you like to do?"
@@ -489,7 +489,7 @@ export default function DashboardPage() {
             </label>
             <button
               type="submit"
-              class="flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400"
+              class="flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400 sm:w-auto"
             >
               <Search size={17} aria-hidden="true" />
               <span>Search</span>
@@ -506,11 +506,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <section aria-label="Ways to book or order" class="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <section class="mt-5 grid grid-cols-2 gap-2.5 sm:gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <For each={filteredServices()}>
             {(item) => (
-              <article class="group overflow-hidden rounded-3xl border border-dust-grey-600 bg-dust-grey-900 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-dry-sage-500 hover:shadow-xl hover:shadow-dust-grey-100/10">
-                <div class="relative aspect-[1.34] overflow-hidden bg-dry-sage-900">
+              <article class="group min-w-0 overflow-hidden rounded-2xl border border-dust-grey-600 bg-dust-grey-900 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-dry-sage-500 hover:shadow-xl hover:shadow-dust-grey-100/10 sm:rounded-3xl">
+                <div class="relative aspect-[1.12] overflow-hidden bg-dry-sage-900 sm:aspect-[1.34]">
                   <img
                     src={imageUrl(item.image)}
                     alt=""
@@ -518,23 +518,23 @@ export default function DashboardPage() {
                     class="size-full object-cover transition duration-500 group-hover:scale-105"
                   width="1000" height="667" />
                 </div>
-                <div class="p-4">
-                  <div class="flex items-center gap-3">
-                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-dry-sage-900 text-hunter-green-500">
+                <div class="p-3 sm:p-4">
+                  <div class="flex items-start gap-2 sm:items-center sm:gap-3">
+                    <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-dry-sage-900 text-hunter-green-500 sm:size-10 sm:rounded-xl">
                       <item.Icon size={19} aria-hidden="true" />
                     </span>
-                    <h3 class="font-serif text-[19px] font-semibold tracking-[-0.02em] text-dust-grey-100">
+                    <h3 class="font-serif text-sm leading-tight font-semibold tracking-[-0.02em] text-dust-grey-100 sm:text-[19px]">
                       {item.name}
                     </h3>
                   </div>
-                  <p class="mt-3 min-h-10 text-sm leading-5 text-dust-grey-text">
+                  <p class="mt-3 line-clamp-3 text-xs leading-5 text-dust-grey-text sm:min-h-10 sm:line-clamp-none sm:text-sm">
                     {item.detail}
                   </p>
-                  <div class="mt-4 flex items-center justify-between gap-2 border-t border-dust-grey-700 pt-3">
-                    <span class="text-xs font-medium text-dust-grey-text">{item.typeLabel}</span>
+                  <div class="mt-4 flex items-center justify-end gap-2 border-t border-dust-grey-700 pt-3 sm:justify-between">
+                    <span class="hidden text-xs font-medium text-dust-grey-text sm:inline">{item.typeLabel}</span>
                     <A
                       href="/explore"
-                      class="inline-flex shrink-0 items-center gap-1 rounded-full bg-hunter-green-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-hunter-green-400"
+                      class="inline-flex w-full shrink-0 items-center justify-center gap-1 rounded-full bg-hunter-green-500 px-2 py-2 text-[11px] font-semibold text-white transition hover:bg-hunter-green-400 sm:w-auto sm:px-3 sm:text-xs"
                     >
                       Explore
                       <ArrowRight size={14} aria-hidden="true" />
