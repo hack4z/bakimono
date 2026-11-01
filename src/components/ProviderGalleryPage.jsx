@@ -2,10 +2,11 @@ import { A } from "@solidjs/router";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, ImagePlus, Trash2 } from "lucide-solid";
 import { supabase } from "~/utils/supabase";
+import { providerStorageBucket } from "~/utils/provider-storage";
 
 const draftKey = "bakimono-provider-signup-draft";
 const maxPhotos = 5;
-const maxGalleryBytes = 600 * 1024;
+const maxGalleryBytes = 10 * 1024 * 1024;
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 const imageExtensions = {
   "image/jpeg": "jpg",
@@ -28,7 +29,7 @@ function readImage(file) {
   });
 }
 
-export default function ProviderGalleryPage() {
+export default function ProviderGalleryPage(props) {
   const [photos, setPhotos] = createSignal([]);
   const [draftAvailable, setDraftAvailable] = createSignal(false);
   const [isProcessing, setIsProcessing] = createSignal(false);
@@ -74,7 +75,7 @@ export default function ProviderGalleryPage() {
       return;
     }
     if (photos().reduce((total, photo) => total + photo.bytes, 0) + files.reduce((total, file) => total + file.size, 0) > maxGalleryBytes) {
-      setErrorMessage("The gallery is too large for a temporary signup draft. Choose smaller photos (600 KB total maximum).");
+      setErrorMessage("Gallery photos must total no more than 10 MB. Choose smaller photos or remove one.");
       return;
     }
 
@@ -118,51 +119,98 @@ export default function ProviderGalleryPage() {
         return;
       }
       setIsSaving(true);
-      window.sessionStorage.setItem(
-        draftKey,
-        JSON.stringify({
-          ...draft,
-          gallery: selectedPhotos,
-          ...(skipped ? { developmentBypass: true } : {}),
-        }),
-      );
 
       let savedPhotos = selectedPhotos;
       if (!skipped) {
         savedPhotos = [];
-        for (const [index, photo] of selectedPhotos.entries()) {
+        const photosToUpload = selectedPhotos.filter((photo) => !photo.storage_path);
+        let nextPhotoNumber = 1;
+        if (photosToUpload.length > 0) {
+          const folder = `${draft.provider_id}/gallery`;
+          const existingFiles = [];
+          for (let offset = 0; ; offset += 1000) {
+            const { data, error } = await supabase.storage
+              .from(providerStorageBucket)
+              .list(folder, { limit: 1000, offset });
+            if (error) {
+              throw new Error(`Unable to check existing gallery photos: ${error.message}`);
+            }
+            existingFiles.push(...(data ?? []));
+            if (!data || data.length < 1000) break;
+          }
+          const highestPhotoNumber = existingFiles.reduce((highest, file) => {
+            const match = /^(\d+)\.(?:jpg|png|webp)$/i.exec(file.name);
+            return match ? Math.max(highest, Number(match[1])) : highest;
+          }, 0);
+          nextPhotoNumber = highestPhotoNumber + 1;
+        }
+
+        for (const photo of selectedPhotos) {
           const extension = imageExtensions[photo.type];
           if (!extension) {
             throw new Error(`The image type for "${photo.name}" is not supported.`);
           }
-          const storagePath = `${draft.provider_id}/gallery/${index + 1}.${extension}`;
-          if (photo.data) {
+          let storagePath = photo.storage_path;
+          if (!storagePath && photo.data) {
+            storagePath = `${draft.provider_id}/gallery/${nextPhotoNumber}.${extension}`;
+            nextPhotoNumber += 1;
             const imageBlob = await (await fetch(photo.data)).blob();
             const { error } = await supabase.storage
-              .from("provider_images")
+              .from(providerStorageBucket)
               .upload(storagePath, imageBlob, {
                 contentType: photo.type,
-                upsert: true,
+                upsert: false,
               });
             if (error) {
               throw new Error(`Unable to upload gallery photo "${photo.name}": ${error.message}`);
             }
-          } else if (photo.storage_path !== storagePath) {
+          } else if (!storagePath) {
             throw new Error(`The image data for "${photo.name}" is unavailable. Please select it again.`);
           }
           savedPhotos.push({ ...photo, storage_path: storagePath });
         }
+        const persistedPhotos = savedPhotos.map((photo) => {
+          const persistedPhoto = { ...photo };
+          delete persistedPhoto.data;
+          return persistedPhoto;
+        });
         window.sessionStorage.setItem(
           draftKey,
           JSON.stringify({
             ...draft,
-            gallery: savedPhotos,
+            gallery: persistedPhotos,
             ...(skipped ? { developmentBypass: true } : {}),
+          }),
+        );
+      } else {
+        const persistedPhotos = savedPhotos.map((photo) => {
+          const persistedPhoto = { ...photo };
+          delete persistedPhoto.data;
+          return persistedPhoto;
+        });
+        window.sessionStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            ...draft,
+            gallery: persistedPhotos,
+            developmentBypass: true,
           }),
         );
       }
       setPhotos(savedPhotos);
       setIsSkippedForDevelopment(skipped);
+      if (typeof draft.provider_id === "string" && draft.provider_id) {
+        const { data, error: stepError } = await supabase
+          .from("providers")
+          .update({ step: "verification" })
+          .eq("provider_id", draft.provider_id)
+          .select("provider_id")
+          .maybeSingle();
+        if (stepError) throw stepError;
+        if (!data) throw new Error("The provider record could not be found or you do not have permission to save its onboarding progress.");
+      } else {
+        throw new Error("Your provider record could not be found. Go back and save your business details first.");
+      }
       setIsSaved(true);
     } catch (error) {
       setErrorMessage(
@@ -178,32 +226,26 @@ export default function ProviderGalleryPage() {
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-4xl">
-        <Show when={import.meta.env.DEV}>
-          <button
-            type="button"
-            onClick={() => persistGallery(true)}
-            disabled={isSaving()}
-            class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
-          >
-            Development only: skip this step <ArrowRight size={14} aria-hidden="true" />
-          </button>
-        </Show>
         <A
-          href="/provider/signup/social"
-          class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500"
+          href="#"
+          onClick={(event) => {
+            event.preventDefault();
+            props.onStepChange?.("social");
+          }}
+          class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-text"
         >
           <ArrowLeft size={16} aria-hidden="true" />
           Back to social links
         </A>
 
-        <header class="mt-7 rounded-[28px] border border-dry-sage-700 bg-dry-sage-900 p-5 sm:p-8">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-500">Provider onboarding · Step 3 of 5</p>
+        <header class="mt-7 rounded-7 border border-dry-sage-700 bg-dry-sage-900 p-5 sm:p-8">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">Provider onboarding · Step 3 of 5</p>
           <h1 class="mt-2 font-serif text-3xl tracking-[-0.04em] sm:text-4xl">Show customers your space.</h1>
           <p class="mt-3 max-w-2xl text-sm leading-6 text-dust-grey-200">
             Add a few photos of your business, rooms, food, or experiences. This gallery is optional and you can continue without photos.
           </p>
           <div class="mt-6" aria-label="Signup progress">
-            <div class="flex items-center justify-between text-xs font-medium text-dust-grey-300">
+            <div class="flex items-center justify-between text-xs font-medium text-dust-grey-text">
               <span>Photo gallery</span>
               <span>60%</span>
             </div>
@@ -221,13 +263,17 @@ export default function ProviderGalleryPage() {
         </header>
 
         <Show when={!draftAvailable() && !errorMessage()}>
-          <section class="mt-6 rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-6 sm:p-8">
+          <section class="mt-6 rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-6 sm:p-8">
             <h2 class="font-serif text-2xl">Complete the previous steps first</h2>
-            <p class="mt-2 text-sm leading-6 text-dust-grey-300">
+            <p class="mt-2 text-sm leading-6 text-dust-grey-text">
               Save your provider details before adding gallery photos.
             </p>
             <A
-              href="/provider/signup"
+              href="#"
+              onClick={(event) => {
+                event.preventDefault();
+                props.onStepChange?.("business");
+              }}
               class="mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white hover:bg-hunter-green-400"
             >
               Go to business details <ArrowRight size={16} aria-hidden="true" />
@@ -245,7 +291,7 @@ export default function ProviderGalleryPage() {
           <Show
             when={!isSaved()}
             fallback={
-              <section role="status" class="mt-6 rounded-[28px] border border-dry-sage-700 bg-dry-sage-900 p-6 sm:p-8">
+              <section role="status" class="mt-6 rounded-7 border border-dry-sage-700 bg-dry-sage-900 p-6 sm:p-8">
                 <span class="flex size-12 items-center justify-center rounded-2xl bg-hunter-green-500 text-white">
                   <Check size={22} aria-hidden="true" />
                 </span>
@@ -255,7 +301,7 @@ export default function ProviderGalleryPage() {
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
                   {isSkippedForDevelopment()
                     ? "The gallery was bypassed without requiring photos."
-                    : `${photos().length} gallery photo${photos().length === 1 ? "" : "s"} uploaded under your provider's gallery folder with sequential filenames.`}
+                      : `${photos().length} gallery photo${photos().length === 1 ? "" : "s"} saved and ready for your provider profile.`}
                 </p>
                 <div class="mt-5 flex flex-wrap gap-5">
                   <button
@@ -266,7 +312,11 @@ export default function ProviderGalleryPage() {
                     Edit gallery
                   </button>
                   <A
-                    href="/provider/signup/verification"
+                    href="#"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      props.onStepChange?.("verification");
+                    }}
                     class="inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400"
                   >
                     Continue to verification <ArrowRight size={16} aria-hidden="true" />
@@ -275,11 +325,11 @@ export default function ProviderGalleryPage() {
               </section>
             }
           >
-            <form onSubmit={(event) => { event.preventDefault(); persistGallery(); }} class="mt-6 rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+            <form onSubmit={(event) => { event.preventDefault(); persistGallery(); }} class="mt-6 rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
               <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 class="font-serif text-2xl tracking-[-0.035em]">Business gallery <span class="text-sm font-sans font-normal text-dust-grey-300">(optional)</span></h2>
-                  <p class="mt-1 text-sm text-dust-grey-300">Add up to {maxPhotos} JPG, PNG, or WebP photos.</p>
+                  <h2 class="font-serif text-2xl tracking-[-0.035em]">Business gallery <span class="text-sm font-sans font-normal text-dust-grey-text">(optional)</span></h2>
+                  <p class="mt-1 text-sm text-dust-grey-text">Add up to {maxPhotos} JPG, PNG, or WebP photos.</p>
                 </div>
                 <label class="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-dry-sage-700 px-4 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-900">
                   <ImagePlus size={17} aria-hidden="true" />
@@ -299,9 +349,9 @@ export default function ProviderGalleryPage() {
                 when={photos().length > 0}
                 fallback={
                   <div class="mt-6 rounded-2xl border border-dashed border-dust-grey-600 bg-dust-grey-800 px-5 py-10 text-center">
-                    <ImagePlus size={26} class="mx-auto text-dust-grey-300" aria-hidden="true" />
+                    <ImagePlus size={26} class="mx-auto text-dust-grey-text" aria-hidden="true" />
                     <p class="mt-3 text-sm font-medium text-dust-grey-200">No gallery photos added</p>
-                    <p class="mt-1 text-xs text-dust-grey-300">You can skip this and continue.</p>
+                    <p class="mt-1 text-xs text-dust-grey-text">You can skip this and continue.</p>
                   </div>
                 }
               >
@@ -309,8 +359,8 @@ export default function ProviderGalleryPage() {
                   <For each={photos()}>
                     {(photo) => (
                       <figure class="relative overflow-hidden rounded-2xl border border-dust-grey-600 bg-dust-grey-800">
-                        <img src={photo.data} alt={photo.name} class="aspect-square w-full object-cover" />
-                        <figcaption class="truncate px-3 py-2 text-xs text-dust-grey-300">{photo.name}</figcaption>
+                        <img src={photo.data} alt={photo.name} class="aspect-square w-full object-cover" width="800" height="600" />
+                        <figcaption class="truncate px-3 py-2 text-xs text-dust-grey-text">{photo.name}</figcaption>
                         <button
                           type="button"
                           aria-label={`Remove ${photo.name}`}
@@ -325,11 +375,11 @@ export default function ProviderGalleryPage() {
                 </div>
               </Show>
 
-              <p class="mt-4 text-xs leading-5 text-dust-grey-300">
-                Photos upload to provider_images/&lt;provider_id&gt;/gallery/ as sequentially numbered files. Temporary signup drafts support up to 600 KB total.
+              <p class="mt-4 text-xs leading-5 text-dust-grey-text">
+                JPG, PNG, or WebP. Add up to {maxPhotos} photos, with a combined size of up to 10 MB.
               </p>
               <div class="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-dust-grey-700 pt-5 sm:flex-row sm:items-center">
-                <p class="text-xs leading-5 text-dust-grey-300">Photos are optional; saving an empty gallery is fine.</p>
+                <p class="text-xs leading-5 text-dust-grey-text">Photos are optional; saving an empty gallery is fine.</p>
                 <button
                   type="submit"
                   disabled={isProcessing() || isSaving()}

@@ -2,9 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/logo_pack/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta id="theme-color" name="theme-color" content="#344e41" />
+    <meta name="description" content="BAKIMONO, a modern digital product brand." />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS: no install prompt, users use Share → Add to Home Screen -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BAKIMONO" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+
+    <link rel="preload" as="image" href="/restaurant-hero.jpg" fetchpriority="high">
+    <link rel="icon" href="/favicon.ico" />
     <title>Bakimono</title>
+
+    <!-- Applies the saved or system theme before first paint -->
+    <script>
+      (function () {
+        var saved;
+        try { saved = localStorage.getItem('bakimono-theme'); } catch (e) {}
+        var dark = saved ? saved === 'dark'
+          : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', dark);
+        document.getElementById('theme-color')
+          .setAttribute('content', dark ? '#1c2620' : '#344e41');
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

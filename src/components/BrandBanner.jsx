@@ -1,6 +1,6 @@
 export default function BrandBanner(props) {
   return (
-    <section class="relative mb-7 overflow-hidden rounded-[28px] border border-hunter-green-400 bg-gradient-to-br from-hunter-green-500 via-pine-teal-500 to-fern-500 p-5 text-white shadow-sm sm:p-7 lg:p-8">
+    <section class="relative mb-7 overflow-hidden rounded-7 border border-hunter-green-400 bg-linear-to-br from-hunter-green-500 via-pine-teal-500 to-fern-500 p-5 text-white shadow-sm sm:p-7 lg:p-8">
       <div class="pointer-events-none absolute -right-12 -top-20 size-56 rounded-full border border-white/15" />
       <div class="pointer-events-none absolute -bottom-32 right-28 size-64 rounded-full border border-white/10" />
       <div class="relative flex flex-wrap items-center justify-between gap-5">
@@ -21,7 +21,7 @@ export default function BrandBanner(props) {
             src="/logo_pack/logo-horizontal-on-dark.svg"
             alt="Bakimono"
             class="h-7 w-auto opacity-90 sm:h-10"
-          />
+          width="240" height="64" />
         </div>
       </div>
     </section>

@@ -1,9 +1,13 @@
-import { A, useLocation } from "@solidjs/router";
+import { A, useLocation, useNavigate } from "@solidjs/router";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { ArrowRight, CalendarDays, CircleHelp, Cookie, FileText, MapPin, Moon, Package, Pencil, Phone, Shield, Sun, X } from "lucide-solid";
+import { ArrowRight, CircleHelp, Clipboard, Cookie, Download, FileText, LogOut, MapPin, Moon, Pencil, Phone, QrCode, Share2, Shield, Sun, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
+import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 import ThemeToggle from "~/components/ThemeToggle";
-import { supabase } from "~/utils/supabase";
+import { getSupabaseErrorMessage, getUserAvatarUrl, normalizeKenyanPhone, supabase, uploadAvatar } from "~/utils/supabase";
+import { checkProfileCompletion, isProfileComplete } from "~/utils/profile-completion";
+import { getCurrentProvider } from "~/utils/provider-data";
+import { providerStorageBucket } from "~/utils/provider-storage";
 
 function parseMarkdown(markdown) {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
@@ -139,21 +143,21 @@ function MarkdownContent(props) {
           }
           if (block.type === "unordered-list") {
             return (
-              <ul class="list-disc space-y-2 pl-6 marker:text-fern-500">
+              <ul class="list-disc space-y-2 pl-6 marker:text-fern-text">
                 <For each={block.items}>{(item) => <li><InlineMarkdown text={item} /></li>}</For>
               </ul>
             );
           }
           if (block.type === "ordered-list") {
             return (
-              <ol class="list-decimal space-y-2 pl-6 marker:font-semibold marker:text-fern-500">
+              <ol class="list-decimal space-y-2 pl-6 marker:font-semibold marker:text-fern-text">
                 <For each={block.items}>{(item) => <li><InlineMarkdown text={item} /></li>}</For>
               </ol>
             );
           }
           if (block.type === "quote") {
             return (
-              <blockquote class="border-l-2 border-fern-500 pl-4 italic text-dust-grey-300">
+              <blockquote class="border-l-2 border-fern-500 pl-4 italic text-dust-grey-text">
                 <InlineMarkdown text={block.text} />
               </blockquote>
             );
@@ -170,6 +174,7 @@ function MarkdownContent(props) {
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const [user, setUser] = createSignal(null);
   const [profile, setProfile] = createSignal(null);
   const [isLoading, setIsLoading] = createSignal(true);
@@ -177,8 +182,32 @@ export default function SettingsPage() {
   const [isDark, setIsDark] = createSignal(false);
   const [isEditingProfile, setIsEditingProfile] = createSignal(false);
   const [editForm, setEditForm] = createSignal({});
+  const [avatarFile, setAvatarFile] = createSignal(null);
+  const [avatarPreview, setAvatarPreview] = createSignal("");
   const [isSavingProfile, setIsSavingProfile] = createSignal(false);
   const [profileSaveError, setProfileSaveError] = createSignal("");
+  const [profileSaveMessage, setProfileSaveMessage] = createSignal("");
+  const [verificationMessage, setVerificationMessage] = createSignal("");
+  const [verificationError, setVerificationError] = createSignal("");
+  const [isResendingVerification, setIsResendingVerification] = createSignal(false);
+  const [profileIsComplete, setProfileIsComplete] = createSignal(false);
+  const [isSigningOut, setIsSigningOut] = createSignal(false);
+  const [signOutError, setSignOutError] = createSignal("");
+
+  async function signOut() {
+    if (isSigningOut()) return;
+    setSignOutError("");
+    setIsSigningOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate("/login", { replace: true });
+    } catch (error) {
+      setSignOutError(getSupabaseErrorMessage(error, "Unable to sign out."));
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
 
   onMount(async () => {
     const syncTheme = (event) => setIsDark(event.detail);
@@ -193,16 +222,19 @@ export default function SettingsPage() {
       if (data.user) {
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("created_at, updated_at, user_id, orders, bookings, image, name, birthday, address, city, phone")
+          .select("entry_id, created_at, updated_at, user_id, name, birthday, address, city, phone")
           .eq("user_id", data.user.id)
           .maybeSingle();
 
         if (profileError) throw profileError;
         setProfile(profileData);
+        const completion = await checkProfileCompletion();
+        setProfileIsComplete(isProfileComplete(completion));
+        setAvatarPreview(await getUserAvatarUrl(data.user.id));
       }
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to load your profile.",
+        getSupabaseErrorMessage(error, "Unable to load your profile."),
       );
     } finally {
       setIsLoading(false);
@@ -224,7 +256,7 @@ export default function SettingsPage() {
       .join("") || "B";
 
   const avatarUrl = () =>
-    profile()?.image || user()?.user_metadata?.avatar_url || user()?.user_metadata?.picture;
+    avatarPreview() || user()?.user_metadata?.avatar_url || user()?.user_metadata?.picture;
   const formatProfileDate = (value, dateOnly = false) => {
     if (!value) return "Not provided";
     if (dateOnly && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -241,18 +273,39 @@ export default function SettingsPage() {
           ...(dateOnly ? {} : { timeStyle: "short" }),
         }).format(date);
   };
-  const orderCount = () => profile()?.orders?.length ?? 0;
-  const bookingCount = () => profile()?.bookings?.length ?? 0;
+  const profileComplete = () => profileIsComplete();
+
+  async function resendVerificationEmail() {
+    if (!user()?.email || isResendingVerification()) return;
+    setVerificationMessage("");
+    setVerificationError("");
+    setIsResendingVerification(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: user().email,
+      });
+      if (error) throw error;
+      setVerificationMessage("A new verification email has been sent. Check your inbox.");
+    } catch (error) {
+      setVerificationError(getSupabaseErrorMessage(error, "Unable to resend the verification email."));
+    } finally {
+      setIsResendingVerification(false);
+    }
+  }
 
   function openProfileEditor() {
-    if (!profile()) return;
     setProfileSaveError("");
+    setProfileSaveMessage("");
+    setAvatarFile(null);
+    setAvatarPreview(avatarPreview() || user()?.user_metadata?.avatar_url || user()?.user_metadata?.picture || "");
     setEditForm({
-      name: profile().name ?? "",
-      birthday: profile().birthday ?? "",
-      address: profile().address ?? "",
-      city: profile().city ?? "",
-      image: profile().image ?? "",
+      name: profile()?.name ?? "",
+      birthday: profile()?.birthday ?? "",
+      address: profile()?.address ?? "",
+      city: profile()?.city ?? "",
+      phone: profile()?.phone ?? "",
+      avatar: profile()?.avatar ?? "",
     });
     setIsEditingProfile(true);
   }
@@ -261,41 +314,67 @@ export default function SettingsPage() {
     setEditForm((current) => ({ ...current, [field]: value }));
   }
 
+  function selectAvatar(file) {
+    const previousPreview = avatarPreview();
+    if (previousPreview.startsWith("blob:")) URL.revokeObjectURL(previousPreview);
+    setAvatarFile(file);
+    setAvatarPreview(file ? URL.createObjectURL(file) : avatarPreview());
+  }
+
+  onCleanup(() => {
+    const preview = avatarPreview();
+    if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+  });
+
   async function saveProfile(event) {
     event.preventDefault();
-    if (!user() || !profile()) return;
+    if (!user()) return;
 
     setProfileSaveError("");
+    setProfileSaveMessage("");
     const form = editForm();
-    if (!form.name.trim() || !form.birthday || !form.address.trim() || !form.city.trim()) {
-      setProfileSaveError("Please complete your name, birthday, address, and city.");
+    const normalizedPhone = normalizeKenyanPhone(form.phone);
+    if (!form.name.trim() || !form.birthday || !normalizedPhone || !form.address.trim() || !form.city.trim()) {
+      setProfileSaveError("Please complete your details and use a valid phone number starting with 254.");
       return;
     }
 
     setIsSavingProfile(true);
 
     try {
+      const file = avatarFile();
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error("Your avatar must be smaller than 5 MB.");
+        }
+
+        await uploadAvatar(user().id, file);
+      }
+
       const updates = {
         name: form.name.trim(),
         birthday: form.birthday,
         address: form.address.trim(),
         city: form.city.trim(),
-        image: form.image.trim(),
+        phone: normalizedPhone,
         updated_at: new Date().toISOString(),
       };
-      const { data, error } = await supabase
+      const query = supabase
         .from("profiles")
-        .update(updates)
-        .eq("user_id", user().id)
-        .select("created_at, updated_at, user_id, orders, bookings, image, name, birthday, address, city, phone")
+        .upsert({ user_id: user().id, ...updates }, { onConflict: "user_id" })
+        .select("entry_id, created_at, updated_at, user_id, name, birthday, address, city, phone")
         .single();
+      const { data, error } = await query;
 
       if (error) throw error;
       setProfile(data);
+      const completion = await checkProfileCompletion();
+      setProfileIsComplete(isProfileComplete(completion));
+      setProfileSaveMessage("Your profile was saved successfully.");
       setIsEditingProfile(false);
     } catch (error) {
       setProfileSaveError(
-        error instanceof Error ? error.message : "Unable to save your profile.",
+        getSupabaseErrorMessage(error, "Unable to save your profile."),
       );
     } finally {
       setIsSavingProfile(false);
@@ -311,40 +390,60 @@ export default function SettingsPage() {
           description="Your account, appearance, and a little help when you need it."
         />
 
+        <Show when={profileSaveMessage()}>
+          <section role="status" class="mt-5 rounded-2xl border border-fern-500/40 bg-dry-sage-900 px-4 py-3 text-sm font-semibold text-hunter-green-500">
+            {profileSaveMessage()}
+          </section>
+        </Show>
+
+        <Show when={!isLoading() && user() && !user().email_confirmed_at}>
+          <section role="alert" class="mb-5 mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border-2 border-rose-400 bg-rose-50 px-4 py-4 text-sm text-rose-950 shadow-[0_12px_30px_rgba(225,29,72,0.12)] dark:bg-rose-950/40 dark:text-rose-50">
+            <div>
+              <p class="font-semibold">Verify your email address</p>
+              <p class="mt-1 leading-6 text-rose-800 dark:text-rose-100">Check {user().email} for your verification link before continuing.</p>
+              <Show when={verificationMessage()}><p role="status" class="mt-1 font-semibold text-rose-700 dark:text-rose-200">{verificationMessage()}</p></Show>
+              <Show when={verificationError()}><p role="alert" class="mt-1 font-semibold text-rose-700 dark:text-rose-200">{verificationError()}</p></Show>
+            </div>
+            <button type="button" onClick={resendVerificationEmail} disabled={isResendingVerification()} class="inline-flex h-10 shrink-0 items-center rounded-xl bg-rose-600 px-4 font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
+              {isResendingVerification() ? "Sending…" : "Resend email"}
+            </button>
+          </section>
+        </Show>
+
         <section
-          role={profile() ? "button" : undefined}
-          tabindex={profile() ? 0 : undefined}
-          aria-label={profile() ? "Edit your profile" : "Your profile"}
+          role={user() ? "button" : undefined}
+          tabindex={user() ? 0 : undefined}
+          aria-label={user() ? "Edit your profile" : "Your profile"}
           onClick={() => {
-            if (profile()) openProfileEditor();
+            if (user()) openProfileEditor();
           }}
           onKeyDown={(event) => {
-            if (profile() && (event.key === "Enter" || event.key === " ")) {
+            if (user() && (event.key === "Enter" || event.key === " ")) {
               event.preventDefault();
               openProfileEditor();
             }
           }}
-          class="relative overflow-hidden rounded-[28px] border border-dry-sage-700 bg-gradient-to-br from-hunter-green-500 via-fern-500 to-pine-teal-500 p-4 text-white shadow-sm sm:p-6"
+          class="relative overflow-hidden rounded-7 border border-dry-sage-700 bg-linear-to-br from-hunter-green-500 via-fern-500 to-pine-teal-500 p-4 text-white shadow-sm sm:p-6"
           classList={{
             "cursor-pointer transition hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500":
-              Boolean(profile()),
+              Boolean(user()),
           }}
         >
           <div class="absolute -right-10 -top-16 size-56 rounded-full border border-white/15" />
           <div class="absolute -bottom-28 right-24 size-64 rounded-full border border-white/10" />
           <div class="relative flex flex-wrap items-center gap-3">
-            <div class="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[20px] border border-white/30 bg-white/15 text-2xl font-semibold shadow-sm backdrop-blur">
+            <div class="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl border-2 border-white/40 bg-white/15 text-3xl font-semibold shadow-lg backdrop-blur sm:size-28">
               <Show
                 when={avatarUrl()}
                 fallback={<span>{initials()}</span>}
               >
-                {(src) => <img src={src()} alt="" class="size-full object-cover" />}
+                {(src) => <img src={src()} alt="" class="size-full object-cover" width="800" height="600" />}
               </Show>
             </div>
             <div class="min-w-0 flex-1">
               <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/75">
                 Your profile
-                <Show when={!isLoading() && profile()}>
+                <Show when={!isLoading() && user()}>
                   <Pencil size={11} aria-hidden="true" />
                   <span class="normal-case tracking-normal">Edit</span>
                 </Show>
@@ -370,22 +469,6 @@ export default function SettingsPage() {
             </Show>
           </div>
           <Show when={!isLoading() && profile()}>
-            <div class="relative mt-4 grid gap-2 border-t border-white/20 pt-4 sm:grid-cols-2">
-              <div class="flex min-h-14 items-center gap-3 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
-                <Package size={17} class="shrink-0 text-white/80" aria-hidden="true" />
-                <div>
-                  <p class="text-[11px] font-medium uppercase tracking-wide text-white/70">Orders</p>
-                  <p class="text-lg font-semibold">{orderCount()}</p>
-                </div>
-              </div>
-              <div class="flex min-h-14 items-center gap-3 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
-                <CalendarDays size={17} class="shrink-0 text-white/80" aria-hidden="true" />
-                <div>
-                  <p class="text-[11px] font-medium uppercase tracking-wide text-white/70">Bookings</p>
-                  <p class="text-lg font-semibold">{bookingCount()}</p>
-                </div>
-              </div>
-            </div>
             <dl class="relative mt-3 grid grid-cols-1 gap-2 border-t border-white/20 pt-3 text-sm sm:grid-cols-2">
               <div class="min-w-0 rounded-xl border border-white/15 bg-white/10 px-3 py-2">
                 <dt class="truncate text-xs leading-4 text-white/70">Birthday</dt>
@@ -421,16 +504,28 @@ export default function SettingsPage() {
               </div>
             </dl>
           </Show>
-          <Show when={!isLoading() && user() && !profile() && !errorMessage()}>
+          <Show when={!isLoading() && user() && !profileComplete() && !errorMessage()}>
             <p class="relative mt-5 border-t border-white/20 pt-4 text-sm text-white/80">
-              Profile details are not available yet.
+              Complete your profile to unlock bookings, orders, and other account features.
             </p>
           </Show>
         </section>
 
+        <Show when={!isLoading() && user() && !profile() && !errorMessage()}>
+          <section role="status" class="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-dry-sage-700 bg-dry-sage-900 px-4 py-4 text-sm text-dust-grey-100 shadow-sm">
+            <div>
+              <p class="font-semibold">Complete your signup</p>
+              <p class="mt-1 leading-6">Add your name, birthday, phone number, city, and address in your profile to use bookings, orders, and other account features.</p>
+            </div>
+            <button type="button" onClick={openProfileEditor} class="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-hunter-green-500 px-4 text-sm font-semibold text-white hover:bg-hunter-green-400">
+              Complete profile <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          </section>
+        </Show>
+
         <Show when={isEditingProfile()}>
           <div
-            class="product-drawer-backdrop fixed inset-0 z-[60] bg-pine-teal-100/55 backdrop-blur-sm"
+            class="animate-product-drawer-backdrop-in motion-reduce:animate-none fixed inset-0 z-60 bg-pine-teal-100/55 backdrop-blur-sm"
             role="presentation"
             onClick={(event) => {
               if (event.target === event.currentTarget && !isSavingProfile()) {
@@ -442,11 +537,11 @@ export default function SettingsPage() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="edit-profile-title"
-              class="product-drawer-panel absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-dust-grey-600 bg-dust-grey-900 shadow-2xl"
+              class="animate-product-drawer-in motion-reduce:animate-none absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-dust-grey-600 bg-dust-grey-900 shadow-2xl"
             >
               <div class="flex items-start justify-between gap-4 border-b border-dust-grey-600 p-5 sm:p-7">
                 <div class="rounded-xl border border-white/15 bg-white/10 px-3 py-2">
-                  <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-500">
+                  <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">
                     Your account
                   </p>
                   <h2 id="edit-profile-title" class="mt-1 font-serif text-2xl text-dust-grey-100">
@@ -458,7 +553,7 @@ export default function SettingsPage() {
                   aria-label="Close profile editor"
                   disabled={isSavingProfile()}
                   onClick={() => setIsEditingProfile(false)}
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-300 transition hover:bg-dust-grey-800 disabled:opacity-50"
+                  class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800 disabled:opacity-50"
                 >
                   <X size={18} aria-hidden="true" />
                 </button>
@@ -514,13 +609,33 @@ export default function SettingsPage() {
                     />
                   </label>
                   <label class="block text-sm font-medium text-dust-grey-200">
-                    Profile image URL
+                    Avatar image
                     <input
-                      name="image"
-                      type="text"
-                      maxlength="2048"
-                      value={editForm().image}
-                      onInput={(event) => updateEditField("image", event.currentTarget.value)}
+                      name="avatar"
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0] ?? null;
+                        selectAvatar(file);
+                      }}
+                      class="mt-2 min-h-32 w-full cursor-pointer rounded-2xl border-2 border-dashed border-dry-sage-700 bg-dry-sage-900 p-5 text-sm text-dust-grey-200 outline-none file:mr-4 file:rounded-lg file:border-0 file:bg-hunter-green-500 file:px-4 file:py-2.5 file:font-semibold file:text-white hover:border-fern-500"
+                    />
+                    <Show when={avatarPreview()}>
+                      <img src={avatarPreview()} alt="Selected avatar preview" class="mt-3 size-28 rounded-2xl border border-dry-sage-700 object-cover" width="112" height="112" />
+                    </Show>
+                    <p class="mt-1 text-xs text-dust-grey-400">Choose a PNG, JPG, WEBP, or GIF up to 5 MB.</p>
+                  </label>
+                  <label class="block text-sm font-medium text-dust-grey-200">
+                    Phone number
+                    <input
+                      name="phone"
+                      type="tel"
+                      required
+                      inputmode="tel"
+                      maxlength="12"
+                      pattern="254[17][0-9]{8}"
+                      value={editForm().phone}
+                      onInput={(event) => updateEditField("phone", event.currentTarget.value.replace(/\D/g, "").slice(0, 12))}
                       class="mt-2 h-11 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-100 outline-none focus:border-fern-500"
                     />
                   </label>
@@ -545,17 +660,17 @@ export default function SettingsPage() {
         </Show>
 
         <section class="mt-8">
-          <p class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-fern-500">
+          <p class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">
             Preferences
           </p>
-          <div class="overflow-hidden rounded-[24px] border border-dust-grey-600 bg-dust-grey-900">
+          <div class="overflow-hidden rounded-3xl border border-dust-grey-600 bg-dust-grey-900">
             <div class="flex items-center gap-4 p-4 sm:p-5">
               <span class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-dry-sage-900 text-hunter-green-500">
                 {isDark() ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
               </span>
               <div class="min-w-0 flex-1">
                 <h2 class="text-sm font-semibold text-dust-grey-100">Dark mode</h2>
-                <p class="mt-1 text-xs text-dust-grey-300">
+                <p class="mt-1 text-xs text-dust-grey-text">
                   {isDark() ? "A softer look for low-light moments." : "Switch to a softer, low-light palette."}
                 </p>
               </div>
@@ -564,63 +679,352 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        <Show when={user()}>
+          <section class="mt-8">
+            <p class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">Account</p>
+            <div class="flex flex-col gap-4 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-4 shadow-sm sm:flex-row sm:items-center sm:p-5">
+              <Show when={signOutError()}>
+                <p role="alert" class="flex-1 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{signOutError()}</p>
+              </Show>
+              <span class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-dry-sage-900 text-hunter-green-500">
+                <LogOut size={19} aria-hidden="true" />
+              </span>
+              <div class="min-w-0 flex-1">
+                <h2 class="text-sm font-semibold text-dust-grey-100">Sign out of your account</h2>
+                <p class="mt-1 text-xs leading-5 text-dust-grey-text">End this session securely and return to sign in.</p>
+              </div>
+              <button
+                type="button"
+                onClick={signOut}
+                disabled={isSigningOut()}
+                class="flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+              >
+                <LogOut size={17} aria-hidden="true" />
+                {isSigningOut() ? "Signing out…" : "Sign out"}
+              </button>
+            </div>
+          </section>
+        </Show>
+
         <section class="mt-8">
-          <p class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-fern-500">
+          <p class="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">
             Support &amp; information
           </p>
           <div class="grid gap-3 sm:grid-cols-2">
             <A
               href="/terms-and-conditions"
-              class="group flex items-center gap-4 rounded-[24px] border border-dust-grey-600 bg-dust-grey-900 p-4 transition hover:border-dry-sage-500 hover:shadow-sm sm:p-5"
+              class="group flex items-center gap-4 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-4 transition hover:border-dry-sage-500 hover:shadow-sm sm:p-5"
             >
               <span class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-dry-sage-900 text-hunter-green-500">
                 <FileText size={19} aria-hidden="true" />
               </span>
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-semibold text-dust-grey-100">Terms &amp; Conditions</span>
-                <span class="mt-1 block text-xs text-dust-grey-300">Terms and service information.</span>
+                <span class="mt-1 block text-xs text-dust-grey-text">Terms and service information.</span>
               </span>
-              <ArrowRight size={17} class="shrink-0 text-dust-grey-300 transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
+              <ArrowRight size={17} class="shrink-0 text-dust-grey-text transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
             </A>
             <A
               href="/help"
-              class="group flex items-center gap-4 rounded-[24px] border border-dust-grey-600 bg-dust-grey-900 p-4 transition hover:border-dry-sage-500 hover:shadow-sm sm:p-5"
+              class="group flex items-center gap-4 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-4 transition hover:border-dry-sage-500 hover:shadow-sm sm:p-5"
             >
               <span class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-dry-sage-900 text-hunter-green-500">
                 <CircleHelp size={19} aria-hidden="true" />
               </span>
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-semibold text-dust-grey-100">Help</span>
-                <span class="mt-1 block text-xs text-dust-grey-300">Find answers and support options.</span>
+                <span class="mt-1 block text-xs text-dust-grey-text">Find answers and support options.</span>
               </span>
-              <ArrowRight size={17} class="shrink-0 text-dust-grey-300 transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
+              <ArrowRight size={17} class="shrink-0 text-dust-grey-text transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
             </A>
             <A
               href="/privacy-policy"
-              class="group flex items-center gap-4 rounded-[24px] border border-dust-grey-600 bg-dust-grey-900 p-4 transition hover:border-dry-sage-500 hover:shadow-sm sm:p-5"
+              class="group flex items-center gap-4 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-4 transition hover:border-dry-sage-500 hover:shadow-sm sm:p-5"
             >
               <span class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-dry-sage-900 text-hunter-green-500">
                 <Shield size={19} aria-hidden="true" />
               </span>
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-semibold text-dust-grey-100">Privacy Policy</span>
-                <span class="mt-1 block text-xs text-dust-grey-300">How personal information is handled.</span>
+                <span class="mt-1 block text-xs text-dust-grey-text">How personal information is handled.</span>
               </span>
-              <ArrowRight size={17} class="shrink-0 text-dust-grey-300 transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
+              <ArrowRight size={17} class="shrink-0 text-dust-grey-text transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
             </A>
             <A
               href="/cookie-policy"
-              class="group flex items-center gap-4 rounded-[24px] border border-dust-grey-600 bg-dust-grey-900 p-4 transition hover:border-dry-sage-500 hover:shadow-sm sm:p-5"
+              class="group flex items-center gap-4 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-4 transition hover:border-dry-sage-500 hover:shadow-sm sm:p-5"
             >
               <span class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-dry-sage-900 text-hunter-green-500">
                 <Cookie size={19} aria-hidden="true" />
               </span>
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-semibold text-dust-grey-100">Cookie Policy</span>
-                <span class="mt-1 block text-xs text-dust-grey-300">Information about cookies and preferences.</span>
+                <span class="mt-1 block text-xs text-dust-grey-text">Information about cookies and preferences.</span>
               </span>
-              <ArrowRight size={17} class="shrink-0 text-dust-grey-300 transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
+              <ArrowRight size={17} class="shrink-0 text-dust-grey-text transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
             </A>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+export function ProviderSettingsPage() {
+  const sections = [
+    {
+      href: "/provider/settings/qr-code",
+      title: "QR Code",
+      description: "View and share your provider QR code.",
+      Icon: QrCode,
+    },
+    {
+      href: "/provider/settings/preferences",
+      title: "Preferences",
+      description: "Choose your appearance and manage workspace preferences.",
+      Icon: Moon,
+    },
+    {
+      href: "/provider/settings/terms-and-conditions",
+      title: "Terms & Conditions",
+      description: "Review the terms for using Bakimono.",
+      Icon: FileText,
+    },
+    {
+      href: "/provider/settings/privacy-policy",
+      title: "Privacy Policy",
+      description: "Learn how personal information is handled.",
+      Icon: Shield,
+    },
+    {
+      href: "/provider/settings/help",
+      title: "Help",
+      description: "Find answers and support information.",
+      Icon: CircleHelp,
+    },
+  ];
+
+  return (
+    <main class="min-h-screen bg-dust-grey-800 px-4 pb-10 pt-7 sm:px-7 sm:pt-9 lg:px-10 lg:pt-10">
+      <div class="mx-auto max-w-[1000px]">
+        <ProviderSignupBanner />
+        <BrandBanner
+          eyebrow="Provider workspace"
+          title="Settings."
+          description="Manage preferences, review our policies, or get help."
+        />
+        <nav aria-label="Provider settings sections" class="mt-8 grid gap-3 sm:grid-cols-2">
+          <For each={sections}>
+            {({ href, title, description, Icon }) => (
+              <A
+                href={href}
+                class="group flex min-h-28 items-center gap-4 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-5 transition hover:border-dry-sage-500 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"
+              >
+                <span class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-dry-sage-900 text-hunter-green-500">
+                  <Icon size={20} aria-hidden="true" />
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-sm font-semibold text-dust-grey-100">{title}</span>
+                  <span class="mt-1 block text-sm leading-5 text-dust-grey-text">{description}</span>
+                </span>
+                <ArrowRight size={17} class="shrink-0 text-dust-grey-text transition group-hover:translate-x-1 group-hover:text-hunter-green-500" aria-hidden="true" />
+              </A>
+            )}
+          </For>
+        </nav>
+      </div>
+    </main>
+  );
+}
+
+export function ProviderSettingsQrCodePage() {
+  const [qrCodeUrl, setQrCodeUrl] = createSignal("");
+  const [qrCodeLoading, setQrCodeLoading] = createSignal(true);
+  const [qrCodeAction, setQrCodeAction] = createSignal("");
+
+  onMount(async () => {
+    try {
+      const { providerId } = await getCurrentProvider();
+      const { data: files, error } = await supabase.storage
+        .from(providerStorageBucket)
+        .list(providerId, { limit: 100, search: "qr_code.png" });
+
+      if (error) throw error;
+      if ((files ?? []).some((file) => file.name === "qr_code.png")) {
+        setQrCodeUrl(
+          supabase.storage
+            .from(providerStorageBucket)
+            .getPublicUrl(`${providerId}/qr_code.png`).data.publicUrl,
+        );
+      }
+    } catch {
+      setQrCodeUrl("");
+    } finally {
+      setQrCodeLoading(false);
+    }
+  });
+
+  const fetchQrCodeFile = async () => {
+    const response = await fetch(qrCodeUrl());
+    if (!response.ok) throw new Error("The QR code could not be downloaded.");
+    return new File([await response.blob()], "provider-qr-code.png", { type: "image/png" });
+  };
+
+  const copyQrCode = async () => {
+    setQrCodeAction("");
+    try {
+      await navigator.clipboard.writeText(qrCodeUrl());
+      setQrCodeAction("QR code URL copied.");
+    } catch {
+      setQrCodeAction("Unable to copy the QR code.");
+    }
+  };
+
+  const shareQrCode = async () => {
+    setQrCodeAction("");
+    try {
+      const file = await fetchQrCodeFile();
+      const data = { files: [file], title: "Provider QR code" };
+      if (navigator.share && (!navigator.canShare || navigator.canShare(data))) {
+        await navigator.share(data);
+        return;
+      }
+      if (navigator.share) {
+        await navigator.share({ title: "Provider QR code", url: qrCodeUrl() });
+        return;
+      }
+      await navigator.clipboard.writeText(qrCodeUrl());
+      setQrCodeAction("Sharing is unavailable. The QR code link was copied.");
+    } catch (error) {
+      if (error?.name !== "AbortError") setQrCodeAction("Unable to share the QR code.");
+    }
+  };
+
+  const downloadQrCode = async () => {
+    setQrCodeAction("");
+    try {
+      const file = await fetchQrCodeFile();
+      const objectUrl = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = file.name;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      setQrCodeAction("QR code downloaded.");
+    } catch {
+      setQrCodeAction("Unable to download the QR code.");
+    }
+  };
+
+  return (
+    <main class="min-h-screen bg-dust-grey-800 px-4 pb-10 pt-7 sm:px-7 sm:pt-9 lg:px-10 lg:pt-10">
+      <div class="mx-auto max-w-[1000px]">
+        <ProviderSignupBanner />
+        <BrandBanner
+          eyebrow="Provider workspace"
+          title="QR Code."
+          description="Share your provider storefront with customers."
+        />
+        <section class="mt-8 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-6">
+          <div class="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
+            <div class="flex min-h-72 w-full shrink-0 items-center justify-center rounded-2xl border border-dust-grey-600 bg-white p-6 sm:w-72">
+              <Show when={!qrCodeLoading()}>
+                <Show
+                  when={qrCodeUrl()}
+                  fallback={<p class="text-center text-sm text-dust-grey-text">No QR code available.</p>}
+                >
+                  {(url) => (
+                    <img src={url()} alt="Provider QR code" class="size-full max-h-60 max-w-60 object-contain" width="240" height="600" />
+                  )}
+                </Show>
+              </Show>
+              <Show when={qrCodeLoading()}>
+                <p class="text-sm text-dust-grey-text">Loading QR code…</p>
+              </Show>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-hunter-green-500">Provider QR code</p>
+              <h2 class="mt-2 font-serif text-2xl text-dust-grey-100">Share your provider.</h2>
+              <p class="mt-2 max-w-xl text-sm leading-6 text-dust-grey-text">
+                Customers can scan this code to open your provider storefront.
+              </p>
+              <div class="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!qrCodeUrl()}
+                  onClick={copyQrCode}
+                  class="inline-flex h-11 items-center gap-2 rounded-xl bg-dry-sage-900 px-4 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Clipboard size={18} aria-hidden="true" />
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  disabled={!qrCodeUrl()}
+                  onClick={shareQrCode}
+                  class="inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-4 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Share2 size={18} aria-hidden="true" />
+                  Share
+                </button>
+                <button
+                  type="button"
+                  disabled={!qrCodeUrl()}
+                  onClick={downloadQrCode}
+                  class="inline-flex h-11 items-center gap-2 rounded-xl border border-dust-grey-600 px-4 text-sm font-semibold text-dust-grey-100 transition hover:bg-dust-grey-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download size={18} aria-hidden="true" />
+                  Download
+                </button>
+              </div>
+              <Show when={qrCodeAction()}>
+                {(message) => <p role="status" class="mt-3 text-sm text-dust-grey-text">{message()}</p>}
+              </Show>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+export function ProviderSettingsPreferencesPage() {
+  const [isDark, setIsDark] = createSignal(false);
+
+  onMount(() => {
+    const syncTheme = (event) => setIsDark(event.detail);
+    window.addEventListener("bakimono-theme-change", syncTheme);
+    onCleanup(() => window.removeEventListener("bakimono-theme-change", syncTheme));
+    setIsDark(document.documentElement.classList.contains("dark"));
+  });
+
+  return (
+    <main class="min-h-screen bg-dust-grey-800 px-4 pb-10 pt-7 sm:px-7 sm:pt-9 lg:px-10 lg:pt-10">
+      <div class="mx-auto max-w-[1000px]">
+        <ProviderSignupBanner />
+        <A href="/provider/settings" class="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 hover:underline">
+          <ArrowRight size={15} class="rotate-180" aria-hidden="true" />
+          Back to provider settings
+        </A>
+        <BrandBanner
+          eyebrow="Provider workspace"
+          title="Preferences."
+          description="Choose the appearance that works best for you."
+        />
+        <section class="mt-8 overflow-hidden rounded-3xl border border-dust-grey-600 bg-dust-grey-900">
+          <div class="flex items-center gap-4 p-4 sm:p-5">
+            <span class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-dry-sage-900 text-hunter-green-500">
+              {isDark() ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
+            </span>
+            <div class="min-w-0 flex-1">
+              <h2 class="text-sm font-semibold text-dust-grey-100">Dark mode</h2>
+              <p class="mt-1 text-xs text-dust-grey-text">
+                {isDark() ? "A softer look for low-light moments." : "Switch to a softer, low-light palette."}
+              </p>
+            </div>
+            <ThemeToggle />
           </div>
         </section>
       </div>
@@ -634,7 +1038,9 @@ export function SettingsInfoPage() {
   const [isLoadingPolicy, setIsLoadingPolicy] = createSignal(false);
   const [policyError, setPolicyError] = createSignal("");
   let policyRequest = 0;
-  const section = () => location.pathname.slice(1);
+  const isProviderSettings = () => location.pathname.startsWith("/provider/settings/");
+  const settingsHref = () => isProviderSettings() ? "/provider/settings" : "/settings";
+  const section = () => location.pathname.split("/").filter(Boolean).at(-1) ?? "";
   const isTerms = () => section() === "terms-and-conditions";
   const isPrivacy = () => section() === "privacy-policy";
   const isCookie = () => section() === "cookie-policy";
@@ -669,7 +1075,7 @@ export function SettingsInfoPage() {
     void (async () => {
       try {
         const { data, error } = await supabase.storage
-          .from("admin")
+          .from("bakimono")
           .download(file);
 
         if (error) throw error;
@@ -696,7 +1102,10 @@ export function SettingsInfoPage() {
   return (
     <main class="min-h-screen bg-dust-grey-800 px-4 pb-10 pt-7 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-2xl">
-        <A href="/settings" class="text-sm font-semibold text-hunter-green-500 hover:underline">
+        <Show when={location.pathname.startsWith("/provider/")}>
+          <ProviderSignupBanner />
+        </Show>
+        <A href={settingsHref()} class="text-sm font-semibold text-hunter-green-500 hover:underline">
           ← Back to settings
         </A>
         <div class="mt-6">
@@ -706,10 +1115,10 @@ export function SettingsInfoPage() {
             description={description()}
           />
         </div>
-        <section class="rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-6 sm:p-9">
+        <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-6 sm:p-9">
           <Show when={policyFile()}>
             <Show when={isLoadingPolicy()}>
-              <p role="status" class="mt-6 text-sm text-dust-grey-300">
+              <p role="status" class="mt-6 text-sm text-dust-grey-text">
                 Loading {title().toLowerCase()}…
               </p>
             </Show>
@@ -722,7 +1131,7 @@ export function SettingsInfoPage() {
               <MarkdownContent markdown={policyMarkdown()} />
             </Show>
             <Show when={!isLoadingPolicy() && !policyError() && !policyMarkdown()}>
-              <p class="mt-6 text-sm text-dust-grey-300">
+              <p class="mt-6 text-sm text-dust-grey-text">
                 This policy document is empty.
               </p>
             </Show>

@@ -1,19 +1,22 @@
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { A } from "@solidjs/router";
 import BrandBanner from "~/components/BrandBanner";
+import LoadingState from "~/components/LoadingState";
 import {
   ArrowRight,
   BedDouble,
-  Bookmark,
+  Heart,
   CookingPot,
   House,
   PackageOpen,
   Search,
   Sparkles,
   Utensils,
+  X,
 } from "lucide-solid";
-import { getProductImageUrl } from "~/utils/product-images";
-import { supabase } from "~/utils/supabase";
+import { getSupabaseErrorMessage, getUserAvatarUrl, normalizeKenyanPhone, supabase, uploadAvatar } from "~/utils/supabase";
+import { getProductCoverUrl } from "~/utils/product-images";
+import { checkProfileCompletion, isProfileComplete } from "~/utils/profile-completion";
 
 const categories = [
   { id: "all", label: "All options" },
@@ -62,67 +65,125 @@ const services = [
   },
 ];
 
+const localPhotos = {
+  "photo-1517248135467-4c7edcad34c4": "/restaurant-hero.jpg",
+  "photo-1611892440504-42a792e24d32": "/card-1.jpg",
+  "photo-1414235077428-338989a2e8c0": "/card-2.jpg",
+};
+
 const imageUrl = (photo) =>
-  `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=900&q=85`;
+  localPhotos[photo]
+  ?? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=900&q=85`;
 
 export default function DashboardPage() {
   const [activeCategory, setActiveCategory] = createSignal("all");
   const [query, setQuery] = createSignal("");
-  const [bookmarks, setBookmarks] = createSignal([]);
-  const [bookmarksLoading, setBookmarksLoading] = createSignal(true);
-  const [bookmarksError, setBookmarksError] = createSignal("");
+  const [favourites, setFavourites] = createSignal([]);
+  const [user, setUser] = createSignal(null);
+  const [verificationMessage, setVerificationMessage] = createSignal("");
+  const [verificationError, setVerificationError] = createSignal("");
+  const [isResendingVerification, setIsResendingVerification] = createSignal(false);
+  const [profileComplete, setProfileComplete] = createSignal(false);
+  const [profileStatus, setProfileStatus] = createSignal("loading");
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = createSignal(false);
+  const [isSavingProfile, setIsSavingProfile] = createSignal(false);
+  const [profileSaveError, setProfileSaveError] = createSignal("");
+  const [profileSaveMessage, setProfileSaveMessage] = createSignal("");
+  const [profileForm, setProfileForm] = createSignal({
+    name: "",
+    birthday: "",
+    phone: "",
+    city: "",
+    address: "",
+  });
+  const [avatarFile, setAvatarFile] = createSignal(null);
+  const [avatarPreview, setAvatarPreview] = createSignal("");
+  const [favouritesLoading, setFavouritesLoading] = createSignal(true);
+  const [favouritesError, setFavouritesError] = createSignal("");
 
-  async function loadBookmarks() {
-    setBookmarksLoading(true);
-    setBookmarksError("");
+  async function loadFavourites() {
+    setFavouritesLoading(true);
+    setFavouritesError("");
 
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
 
       if (!userData.user) {
-        setBookmarks([]);
+        setUser(null);
+        setProfileComplete(false);
+        setProfileStatus("missing");
+        setFavourites([]);
         return;
       }
+      setUser(userData.user);
 
-      const { data: bookmarkRows, error: bookmarkError } = await supabase
-        .from("bookmarks")
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("name, birthday, phone, city, address")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      setProfileStatus(profile ? "exists" : "missing");
+      setProfileForm({
+        name: profile?.name ?? "",
+        birthday: profile?.birthday ?? "",
+        phone: profile?.phone ?? "",
+        city: profile?.city ?? "",
+        address: profile?.address ?? "",
+      });
+      setAvatarPreview(await getUserAvatarUrl(userData.user.id));
+      const completion = await checkProfileCompletion();
+      setProfileComplete(isProfileComplete(completion));
+      setProfileStatus(
+        completion.status === "profile_complete" ? "complete"
+          : completion.status === "profile_not_found" ? "missing"
+            : "incomplete",
+      );
+
+      const { data: favouriteRows, error: favouriteError } = await supabase
+        .from("favourites")
         .select("product_id, created_at")
         .eq("user_id", userData.user.id)
         .order("created_at", { ascending: false });
 
-      if (bookmarkError) throw bookmarkError;
+      if (favouriteError) throw favouriteError;
 
-      const rows = bookmarkRows ?? [];
-      const productIds = [...new Set(rows.map((bookmark) => bookmark.product_id))];
+      const rows = favouriteRows ?? [];
+      const productIds = [...new Set(rows.map((favourite) => favourite.product_id))];
       if (productIds.length === 0) {
-        setBookmarks([]);
+        setFavourites([]);
         return;
       }
 
       const { data: products, error: productsError } = await supabase
         .from("products")
-        .select("product_id, name, description, price, type, cover_image, images")
+        .select("product_id, provider_id, name, description, price, type")
         .in("product_id", productIds);
 
       if (productsError) throw productsError;
 
       const productsById = new Map((products ?? []).map((product) => [product.product_id, product]));
-      setBookmarks(
+      setFavourites(await Promise.all(
         rows
-          .map((bookmark) => productsById.get(bookmark.product_id))
-          .filter(Boolean),
-      );
+          .map((favourite) => productsById.get(favourite.product_id))
+          .filter(Boolean)
+          .map(async (product) => ({
+            ...product,
+            coverUrl: await getProductCoverUrl(product.provider_id, product.product_id),
+          })),
+      ));
     } catch (error) {
-      setBookmarksError(
-        error instanceof Error ? error.message : "Unable to load your bookmarks right now.",
+      setProfileStatus("error");
+      setFavouritesError(
+        error instanceof Error ? error.message : "Unable to load your favourites right now.",
       );
     } finally {
-      setBookmarksLoading(false);
+      setFavouritesLoading(false);
     }
   }
 
-  onMount(loadBookmarks);
+  onMount(loadFavourites);
 
   const filteredServices = () => {
     const search = query().trim().toLowerCase();
@@ -141,6 +202,85 @@ export default function DashboardPage() {
     event.preventDefault();
   }
 
+  async function resendVerificationEmail() {
+    if (!user()?.email || isResendingVerification()) return;
+    setVerificationMessage("");
+    setVerificationError("");
+    setIsResendingVerification(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: user().email,
+      });
+      if (error) throw error;
+      setVerificationMessage("A new verification email has been sent. Check your inbox.");
+    } catch (error) {
+      setVerificationError(getSupabaseErrorMessage(error, "Unable to resend the verification email."));
+    } finally {
+      setIsResendingVerification(false);
+    }
+  }
+
+  function openProfileDrawer() {
+    setProfileSaveError("");
+    setAvatarFile(null);
+    setIsProfileDrawerOpen(true);
+  }
+
+  function selectAvatar(file) {
+    const previousPreview = avatarPreview();
+    if (previousPreview.startsWith("blob:")) URL.revokeObjectURL(previousPreview);
+    setAvatarFile(file);
+    setAvatarPreview(file ? URL.createObjectURL(file) : "");
+  }
+
+  onCleanup(() => {
+    const preview = avatarPreview();
+    if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+  });
+
+  async function saveProfile(event) {
+    event.preventDefault();
+    const form = profileForm();
+    if (!user()) return;
+    const normalizedPhone = normalizeKenyanPhone(form.phone);
+    if (!form.name.trim() || !form.birthday || !normalizedPhone || !form.city.trim() || !form.address.trim()) {
+      setProfileSaveError("Please complete your details and use a valid phone number starting with 254.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setProfileSaveError("");
+    setProfileSaveMessage("");
+    try {
+      const file = avatarFile();
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) throw new Error("Your avatar must be smaller than 5 MB.");
+        await uploadAvatar(user().id, file);
+      }
+
+      const updates = {
+        user_id: user().id,
+        name: form.name.trim(),
+        birthday: form.birthday,
+        phone: normalizedPhone,
+        city: form.city.trim(),
+        address: form.address.trim(),
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase.from("profiles").upsert(updates, { onConflict: "user_id" });
+      if (error) throw error;
+      setProfileComplete(true);
+      setProfileStatus("complete");
+      setProfileSaveMessage("Your profile was saved successfully.");
+      setIsProfileDrawerOpen(false);
+    } catch (error) {
+      setProfileSaveError(getSupabaseErrorMessage(error, "Unable to save your profile."));
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
   return (
     <main class="min-h-screen bg-dust-grey-800 px-4 pb-8 pt-7 sm:px-7 sm:pt-9 lg:px-10 lg:pt-10">
       <div class="mx-auto max-w-[1320px]">
@@ -149,6 +289,136 @@ export default function DashboardPage() {
           title="Good plans start here."
           description="Find a place to stay, a table to linger at, or something delicious."
         />
+
+        <Show when={profileSaveMessage()}>
+          <section role="status" class="mt-5 rounded-2xl border border-fern-500/40 bg-dry-sage-900 px-4 py-3 text-sm font-semibold text-hunter-green-500">
+            {profileSaveMessage()}
+          </section>
+        </Show>
+
+        <Show when={user() && !user().email_confirmed_at}>
+          <section role="alert" class="mb-5 mt-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border-2 border-rose-400 bg-rose-50 p-5 text-rose-950 shadow-[0_12px_30px_rgba(225,29,72,0.12)] dark:bg-rose-950/40 dark:text-rose-50 sm:p-6">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.16em] text-rose-700 dark:text-rose-200">Email verification required</p>
+              <h2 class="mt-1 font-serif text-2xl">Verify your email address</h2>
+              <p class="mt-1 text-sm leading-6 text-rose-800 dark:text-rose-100">
+                We sent a verification link to {user().email}. Open it to verify your account and keep using Bakimono.
+              </p>
+              <Show when={verificationMessage()}><p role="status" class="mt-2 text-sm font-semibold text-rose-700 dark:text-rose-200">{verificationMessage()}</p></Show>
+              <Show when={verificationError()}><p role="alert" class="mt-2 text-sm font-semibold text-rose-700 dark:text-rose-200">{verificationError()}</p></Show>
+            </div>
+            <button type="button" onClick={resendVerificationEmail} disabled={isResendingVerification()} class="inline-flex h-11 shrink-0 items-center rounded-xl bg-rose-600 px-4 text-sm font-bold text-white transition hover:bg-rose-700 disabled:opacity-60">
+              {isResendingVerification() ? "Sending…" : "Resend email"}
+            </button>
+          </section>
+        </Show>
+
+        <Show when={user() && ["missing", "incomplete"].includes(profileStatus())}>
+          <section role="alert" class="mb-8 mt-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-dry-sage-700 bg-dry-sage-900 p-5 text-dust-grey-100 shadow-sm sm:p-6">
+            <div class="flex items-start gap-3">
+              <span class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-hunter-green-500 text-white">
+                <Sparkles size={18} aria-hidden="true" />
+              </span>
+              <div>
+                <p class="text-xs font-bold uppercase tracking-[0.16em] text-hunter-green-500">Action required</p>
+                <h2 class="mt-1 font-serif text-2xl">Complete your signup before booking</h2>
+                <p class="mt-1 max-w-2xl text-sm leading-6 text-dust-grey-200">
+                  Add your name, birthday, phone number, city, and address in Settings. Checkout stays locked until your profile is complete.
+                </p>
+              </div>
+            </div>
+            <button type="button" onClick={openProfileDrawer} class="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-hunter-green-500 px-4 text-sm font-bold text-white transition hover:bg-hunter-green-400">
+              Complete profile <ArrowRight size={16} aria-hidden="true" />
+            </button>
+          </section>
+        </Show>
+
+        <Show when={!favouritesLoading() && !user()}>
+          <section role="status" class="mb-8 mt-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-dry-sage-700 bg-dry-sage-900 p-5 text-dust-grey-100 shadow-sm sm:p-6">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.16em] text-hunter-green-500">Sign in required</p>
+              <h2 class="mt-1 font-serif text-2xl">Explore with your Bakimono account</h2>
+              <p class="mt-1 max-w-2xl text-sm leading-6 text-dust-grey-200">
+                Sign in to manage bookings and orders, or create an account to get started.
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+              <A href="/login" class="inline-flex h-11 items-center rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm font-bold text-dust-grey-100 transition hover:border-fern-500">
+                Sign in
+              </A>
+              <A href="/signup" class="inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-4 text-sm font-bold text-white transition hover:bg-hunter-green-400">
+                Sign up <ArrowRight size={16} aria-hidden="true" />
+              </A>
+            </div>
+          </section>
+        </Show>
+
+        <Show when={isProfileDrawerOpen()}>
+          <div class="fixed inset-0 z-60 bg-pine-teal-100/55 backdrop-blur-sm" role="presentation" onClick={(event) => {
+            if (event.target === event.currentTarget && !isSavingProfile()) setIsProfileDrawerOpen(false);
+          }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="dashboard-profile-title" class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-dust-grey-600 bg-dust-grey-900 shadow-2xl">
+              <div class="flex items-start justify-between gap-4 border-b border-dust-grey-600 p-5 sm:p-7">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">Action required</p>
+                  <h2 id="dashboard-profile-title" class="mt-1 font-serif text-2xl text-dust-grey-100">Complete your profile</h2>
+                </div>
+                <button type="button" aria-label="Close profile editor" disabled={isSavingProfile()} onClick={() => setIsProfileDrawerOpen(false)} class="flex size-10 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text hover:bg-dust-grey-800 disabled:opacity-50">
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
+              <form class="flex flex-1 flex-col" onSubmit={saveProfile}>
+                <div class="flex-1 space-y-4 p-5 sm:p-7">
+                  <For each={[
+                    ["name", "Full name", "text"],
+                    ["birthday", "Birthday", "date"],
+                    ["phone", "Phone number (254...)", "tel"],
+                    ["city", "City", "text"],
+                    ["address", "Street address", "text"],
+                  ]}>
+                    {(field) => (
+                      <label class="block text-sm font-medium text-dust-grey-200">
+                        {field[1]}
+                        <input
+                          name={field[0]}
+                          type={field[2]}
+                          required
+                          maxlength={field[0] === "phone" ? 12 : undefined}
+                          pattern={field[0] === "phone" ? "254[17][0-9]{8}" : undefined}
+                          inputmode={field[0] === "phone" ? "tel" : undefined}
+                          value={profileForm()[field[0]]}
+                          onInput={(event) => setProfileForm((current) => ({
+                            ...current,
+                            [field[0]]: field[0] === "phone"
+                              ? event.currentTarget.value.replace(/\D/g, "").slice(0, 12)
+                              : event.currentTarget.value,
+                          }))}
+                          class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-100 outline-none focus:border-fern-500"
+                        />
+                      </label>
+                    )}
+                  </For>
+                  <label class="block text-sm font-medium text-dust-grey-200">
+                    Avatar image
+                    <Show when={avatarPreview()}>
+                      <img src={avatarPreview()} alt="Selected avatar preview" class="mb-3 size-28 rounded-2xl border border-dry-sage-700 object-cover" width="112" height="112" />
+                    </Show>
+                    <input type="file" accept="image/*" onChange={(event) => selectAvatar(event.currentTarget.files?.[0] ?? null)} class="mt-2 min-h-32 w-full cursor-pointer rounded-2xl border-2 border-dashed border-dry-sage-700 bg-dry-sage-900 p-5 text-sm text-dust-grey-200 file:mr-4 file:rounded-lg file:border-0 file:bg-hunter-green-500 file:px-4 file:py-2.5 file:font-semibold file:text-white hover:border-fern-500" />
+                    <p class="mt-1 text-xs text-dust-grey-400">Choose an image up to 5 MB.</p>
+                  </label>
+                  <Show when={profileSaveError()}>
+                    <p role="alert" class="rounded-xl border border-dust-grey-600 bg-dust-grey-800 px-4 py-3 text-sm text-dust-grey-200">{profileSaveError()}</p>
+                  </Show>
+                </div>
+                <div class="sticky bottom-0 border-t border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-7">
+                  <button type="submit" disabled={isSavingProfile()} class="flex h-12 w-full items-center justify-center rounded-xl bg-hunter-green-500 text-sm font-semibold text-white hover:bg-hunter-green-400 disabled:opacity-60">
+                    {isSavingProfile() ? "Saving profile…" : "Save profile"}
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </Show>
 
         <section class="relative overflow-hidden rounded-[30px] border border-dry-sage-700 bg-dry-sage-900 p-5 shadow-sm sm:p-7 lg:p-8">
           <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
@@ -183,16 +453,16 @@ export default function DashboardPage() {
                 </For>
               </div>
             </div>
-            <div class="relative hidden min-h-[260px] overflow-hidden rounded-[24px] bg-hunter-green-300 lg:block">
+            <div class="relative hidden min-h-[260px] overflow-hidden rounded-3xl bg-hunter-green-300 lg:block">
               <img
                 src={imageUrl("photo-1414235077428-338989a2e8c0")}
                 alt="A warmly lit table set for dinner"
                 class="absolute inset-0 size-full object-cover"
-              />
-              <div class="absolute inset-0 bg-gradient-to-t from-pine-teal-100/75 via-transparent to-transparent dark:from-[#0a0f0d]/80" />
+              width="740" height="493" />
+              <div class="absolute inset-0 bg-linear-to-t from-pine-teal-100/75 via-transparent to-transparent dark:from-[#0a0f0d]/80" />
               <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-3 rounded-2xl border border-white/30 bg-white/90 p-3 backdrop-blur-md">
                 <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-fern-500">Stay · dine · enjoy</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-fern-text">Stay · dine · enjoy</p>
                   <p class="mt-0.5 font-serif text-lg text-dust-grey-100">Choose your kind of day</p>
                 </div>
                 <span class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-dry-sage-900 text-hunter-green-500">
@@ -213,7 +483,7 @@ export default function DashboardPage() {
                 value={query()}
                 onInput={(event) => setQuery(event.currentTarget.value)}
                 placeholder="What would you like to do?"
-                class="w-full border-0 bg-transparent p-0 text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-300"
+                class="w-full border-0 bg-transparent p-0 text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text"
               />
             </label>
             <button
@@ -228,7 +498,7 @@ export default function DashboardPage() {
 
         <div class="mt-10 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fern-500">Ways to enjoy Bakimono</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fern-text">Ways to enjoy Bakimono</p>
             <h2 class="mt-1 font-serif text-2xl tracking-[-0.035em] text-dust-grey-100 sm:text-[30px]">
               What would you like to do?
             </h2>
@@ -238,14 +508,14 @@ export default function DashboardPage() {
         <section aria-label="Ways to book or order" class="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <For each={filteredServices()}>
             {(item) => (
-              <article class="group overflow-hidden rounded-[24px] border border-dust-grey-600 bg-dust-grey-900 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-dry-sage-500 hover:shadow-xl hover:shadow-dust-grey-100/10">
+              <article class="group overflow-hidden rounded-3xl border border-dust-grey-600 bg-dust-grey-900 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-dry-sage-500 hover:shadow-xl hover:shadow-dust-grey-100/10">
                 <div class="relative aspect-[1.34] overflow-hidden bg-dry-sage-900">
                   <img
                     src={imageUrl(item.image)}
                     alt=""
                     loading="lazy"
                     class="size-full object-cover transition duration-500 group-hover:scale-105"
-                  />
+                  width="1000" height="667" />
                 </div>
                 <div class="p-4">
                   <div class="flex items-center gap-3">
@@ -256,11 +526,11 @@ export default function DashboardPage() {
                       {item.name}
                     </h3>
                   </div>
-                  <p class="mt-3 min-h-10 text-sm leading-5 text-dust-grey-300">
+                  <p class="mt-3 min-h-10 text-sm leading-5 text-dust-grey-text">
                     {item.detail}
                   </p>
                   <div class="mt-4 flex items-center justify-between gap-2 border-t border-dust-grey-700 pt-3">
-                    <span class="text-xs font-medium text-dust-grey-300">{item.typeLabel}</span>
+                    <span class="text-xs font-medium text-dust-grey-text">{item.typeLabel}</span>
                     <A
                       href="/explore"
                       class="inline-flex shrink-0 items-center gap-1 rounded-full bg-hunter-green-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-hunter-green-400"
@@ -277,9 +547,9 @@ export default function DashboardPage() {
 
         <Show when={filteredServices().length === 0}>
           <div class="mt-5 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 px-5 py-12 text-center">
-            <Search size={25} class="mx-auto text-dust-grey-300" aria-hidden="true" />
+            <Search size={25} class="mx-auto text-dust-grey-text" aria-hidden="true" />
             <h3 class="mt-3 font-serif text-xl text-dust-grey-100">No matches just yet</h3>
-            <p class="mt-1 text-sm text-dust-grey-300">Try a different search or loosen your filters.</p>
+            <p class="mt-1 text-sm text-dust-grey-text">Try a different search or loosen your filters.</p>
             <button
               type="button"
               onClick={() => {
@@ -293,12 +563,12 @@ export default function DashboardPage() {
           </div>
         </Show>
 
-        <section aria-labelledby="bookmarks-title" class="mt-12">
+        <section aria-labelledby="favourites-title" class="mt-12">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fern-500">Saved for later</p>
-              <h2 id="bookmarks-title" class="mt-1 flex items-center gap-2 font-serif text-2xl tracking-[-0.035em] text-dust-grey-100 sm:text-[30px]">
-                <Bookmark size={22} aria-hidden="true" />
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fern-text">Saved for later</p>
+              <h2 id="favourites-title" class="mt-1 flex items-center gap-2 font-serif text-2xl tracking-[-0.035em] text-dust-grey-100 sm:text-[30px]">
+                <Heart size={22} aria-hidden="true" />
                 Your favourites
               </h2>
             </div>
@@ -307,47 +577,46 @@ export default function DashboardPage() {
             </A>
           </div>
 
-          <Show when={bookmarksLoading()}>
-            <div role="status" class="mt-5 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 px-5 py-8 text-center text-sm text-dust-grey-300">
-              Loading your saved products…
-            </div>
+          <Show when={favouritesLoading()}>
+            <LoadingState class="mt-5" label="Loading your saved products…" />
           </Show>
 
-          <Show when={!bookmarksLoading() && bookmarksError()}>
+          <Show when={!favouritesLoading() && favouritesError()}>
             <div role="alert" class="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-              <p>{bookmarksError()}</p>
-              <button type="button" onClick={loadBookmarks} class="mt-2 font-semibold underline">
+              <p>{favouritesError()}</p>
+              <button type="button" onClick={loadFavourites} class="mt-2 font-semibold underline">
                 Try again
               </button>
             </div>
           </Show>
 
-          <Show when={!bookmarksLoading() && !bookmarksError() && bookmarks().length === 0}>
+          <Show when={!favouritesLoading() && !favouritesError() && favourites().length === 0}>
             <div class="mt-5 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 px-5 py-10 text-center">
-              <PackageOpen size={25} class="mx-auto text-dust-grey-300" aria-hidden="true" />
+              <PackageOpen size={25} class="mx-auto text-dust-grey-text" aria-hidden="true" />
               <h3 class="mt-3 font-serif text-xl text-dust-grey-100">No favourites saved yet</h3>
-              <p class="mt-1 text-sm text-dust-grey-300">Bookmark products while exploring and they’ll show up here.</p>
+              <p class="mt-1 text-sm text-dust-grey-text">Favourite products while exploring and they’ll show up here.</p>
               <A href="/explore" class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-hunter-green-500 hover:underline">
                 Browse products <ArrowRight size={15} aria-hidden="true" />
               </A>
             </div>
           </Show>
 
-          <Show when={!bookmarksLoading() && !bookmarksError() && bookmarks().length > 0}>
+          <Show when={!favouritesLoading() && !favouritesError() && favourites().length > 0}>
             <div class="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              <For each={bookmarks()}>
+              <For each={favourites()}>
                 {(product) => (
-                  <article class="overflow-hidden rounded-[24px] border border-dust-grey-600 bg-dust-grey-900 shadow-sm">
-                    <img
-                      src={getProductImageUrl(product)}
-                      alt={product.name}
-                      loading="lazy"
-                      class="aspect-[1.34] w-full bg-dry-sage-900 object-cover"
-                    />
+                  <article class="overflow-hidden rounded-3xl border border-dust-grey-600 bg-dust-grey-900 shadow-sm">
+                    <Show when={product.coverUrl} fallback={
+                      <div class="flex aspect-[1.34] w-full items-center justify-center bg-linear-to-br from-dry-sage-800 via-dry-sage-700 to-pine-teal-700">
+                        <PackageOpen size={34} class="text-dry-sage-300" aria-hidden="true" />
+                      </div>
+                    }>
+                      <img src={product.coverUrl} alt={product.name || ""} loading="lazy" class="aspect-[1.34] w-full object-cover" width="800" height="600" />
+                    </Show>
                     <div class="p-4">
-                      <p class="text-xs font-medium capitalize text-dust-grey-300">{product.type || "Product"}</p>
+                      <p class="text-xs font-medium capitalize text-dust-grey-text">{product.type || "Product"}</p>
                       <h3 class="mt-1 truncate font-serif text-lg font-semibold text-dust-grey-100">{product.name}</h3>
-                      <p class="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-dust-grey-300">{product.description}</p>
+                      <p class="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-dust-grey-text">{product.description}</p>
                       <A
                         href={`/checkout/${product.product_id}`}
                         class="mt-4 inline-flex items-center gap-1 rounded-full bg-hunter-green-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-hunter-green-400"

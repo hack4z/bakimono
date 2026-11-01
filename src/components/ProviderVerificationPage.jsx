@@ -1,14 +1,16 @@
 import { A } from "@solidjs/router";
 import { createSignal, For, onMount, Show } from "solid-js";
-import { ArrowLeft, ArrowRight, BadgeCheck, Check, FileText, Plus, Trash2 } from "lucide-solid";
+import { ArrowLeft, ArrowRight, BadgeCheck, Check, FileText, Trash2 } from "lucide-solid";
 import { supabase } from "~/utils/supabase";
+import { providerStorageBucket } from "~/utils/provider-storage";
 
 const draftKey = "bakimono-provider-signup-draft";
+const legalStorageBucket = "legal";
 const fileDatabaseName = "bakimono-provider-signup-files";
 const documentAccept =
   ".pdf,.png,.jpg,.jpeg,.webp,.docx,application/pdf,image/png,image/jpeg,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const inputClass =
-  "h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-300 focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";
+  "h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-text focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";
 const companyTypes = [
   { value: "individual_provider", label: "Individual provider", description: "An individual operating without a separate registered business entity." },
   { value: "sole_proprietor", label: "Sole proprietor", description: "An individual operating under a sole proprietorship or registered business name." },
@@ -20,14 +22,6 @@ const idTypes = [
   { value: "kenyan_national_id", label: "Kenyan National ID" },
   { value: "passport", label: "Passport" },
 ];
-const emptyPartner = () => ({
-  id: crypto.randomUUID(),
-  name: "",
-  id_type: "",
-  id_number: "",
-  id_documents: [],
-});
-
 let fileDatabasePromise;
 
 function openFileDatabase() {
@@ -86,11 +80,6 @@ async function deleteStoredDocument(id) {
   });
 }
 
-function safeIdentifier(value) {
-  const safeValue = value.trim().replace(/[^\w.-]+/g, "_").replace(/^\.+/, "");
-  return safeValue || "document";
-}
-
 function documentExtension(file) {
   const extensions = {
     "application/pdf": "pdf",
@@ -104,6 +93,20 @@ function documentExtension(file) {
   return extension;
 }
 
+function isLegalDocumentPath(path, providerId) {
+  const prefix = `${providerId}/`;
+  return typeof path === "string"
+    && path.startsWith(prefix)
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:pdf|png|jpg|webp|docx)$/i.test(path.slice(prefix.length));
+}
+
+function isLegacyLegalDocumentPath(path, providerId) {
+  const prefix = `${providerId}/legal/`;
+  return typeof path === "string"
+    && path.startsWith(prefix)
+    && /^\d+\.(?:pdf|png|jpg|webp|docx)$/i.test(path.slice(prefix.length));
+}
+
 const emptyVerification = {
   company_type: "",
   legal_name: "",
@@ -114,7 +117,6 @@ const emptyVerification = {
   business_registration_number: "",
   business_registration_documents: [],
   partnership_documents: [],
-  partners: [],
   company_registration_number: "",
   incorporation_documents: [],
   representative_name: "",
@@ -133,17 +135,17 @@ function Field(props) {
       <span class="mb-2 block text-sm font-medium text-dust-grey-100">
         {props.label}
         <Show when={props.required}><span class="ml-1 text-rose-600">*</span></Show>
-        <Show when={!props.required}><span class="ml-1 font-normal text-dust-grey-300">(where applicable)</span></Show>
+        <Show when={!props.required}><span class="ml-1 font-normal text-dust-grey-text">(where applicable)</span></Show>
       </span>
       {props.children}
       <Show when={props.hint}>
-        <span class="mt-1.5 block text-xs leading-5 text-dust-grey-300">{props.hint}</span>
+        <span class="mt-1.5 block text-xs leading-5 text-dust-grey-text">{props.hint}</span>
       </Show>
     </label>
   );
 }
 
-export default function ProviderVerificationPage() {
+export default function ProviderVerificationPage(props) {
   const [verification, setVerification] = createSignal({ ...emptyVerification });
   const [draftAvailable, setDraftAvailable] = createSignal(false);
   const [isSaving, setIsSaving] = createSignal(false);
@@ -165,25 +167,7 @@ export default function ProviderVerificationPage() {
         restored.company_type =
           draft.company_type === "sole_ownership" ? "sole_proprietor" : draft.company_type;
       }
-      if (restored.company_type === "partnership") {
-        restored.partners = Array.isArray(restored.partners)
-          ? restored.partners.map((partner) => ({
-              ...emptyPartner(),
-              ...partner,
-              id: partner.id ?? crypto.randomUUID(),
-              id_documents: Array.isArray(partner.id_documents) ? partner.id_documents : [],
-            }))
-          : [];
-        if (restored.partners.length === 0 && restored.representative_name) {
-          restored.partners = [{
-            ...emptyPartner(),
-            name: restored.representative_name,
-            id_type: restored.representative_id_type,
-            id_number: restored.representative_id_number,
-            id_documents: restored.representative_id_documents ?? [],
-          }];
-        }
-      }
+      delete restored.partners;
       setVerification(restored);
     } catch (error) {
       setErrorMessage(
@@ -198,41 +182,6 @@ export default function ProviderVerificationPage() {
     setVerification((current) => ({ ...current, [name]: value }));
   }
 
-  function updatePartner(index, field, value) {
-    setVerification((current) => ({
-      ...current,
-      partners: current.partners.map((partner, partnerIndex) =>
-        partnerIndex === index ? { ...partner, [field]: value } : partner,
-      ),
-    }));
-  }
-
-  function addPartner() {
-    setVerification((current) => ({
-      ...current,
-      partners: [...current.partners, emptyPartner()],
-    }));
-  }
-
-  async function removePartner(index) {
-    const partner = verification().partners[index];
-    if (!partner) return;
-    setErrorMessage("");
-    try {
-      await Promise.all(partner.id_documents.map((document) => deleteStoredDocument(document.id)));
-      setVerification((current) => ({
-        ...current,
-        partners: current.partners.filter((_, partnerIndex) => partnerIndex !== index),
-      }));
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? `Unable to remove partner documents: ${error.message}`
-          : "Unable to remove partner documents.",
-      );
-    }
-  }
-
   async function selectCompanyType(companyType) {
     const current = verification();
     if (companyType === current.company_type) return;
@@ -241,17 +190,12 @@ export default function ProviderVerificationPage() {
       "id_documents",
       "business_registration_documents",
       "partnership_documents",
-      "partners",
       "incorporation_documents",
       "representative_id_documents",
       "authority_documents",
       "entity_registration_documents",
     ];
-    const oldDocuments = documentFields.flatMap((field) =>
-      field === "partners"
-        ? (current.partners ?? []).flatMap((partner) => partner.id_documents ?? [])
-        : current[field] ?? [],
-    );
+    const oldDocuments = documentFields.flatMap((field) => current[field] ?? []);
     setVerification({ ...emptyVerification, company_type: companyType });
     setIsSaved(false);
     setErrorMessage("");
@@ -264,7 +208,7 @@ export default function ProviderVerificationPage() {
     }
   }
 
-  async function addDocuments(name, event, partnerIndex) {
+  async function addDocuments(name, event) {
     const files = [...(event.currentTarget.files ?? [])];
     event.currentTarget.value = "";
     if (!files.length) return;
@@ -290,19 +234,10 @@ export default function ProviderVerificationPage() {
     const storedFiles = [];
     try {
       for (const file of files) storedFiles.push(await storeDocument(file));
-      setVerification((current) => name === "partner_id_documents"
-        ? {
-            ...current,
-            partners: current.partners.map((partner, index) =>
-              index === partnerIndex
-                ? { ...partner, id_documents: [...partner.id_documents, ...storedFiles] }
-                : partner,
-            ),
-          }
-        : {
-            ...current,
-            [name]: [...current[name], ...storedFiles],
-          });
+      setVerification((current) => ({
+        ...current,
+        [name]: [...current[name], ...storedFiles],
+      }));
     } catch (error) {
       const cleanupResults = await Promise.allSettled(
         storedFiles.map((storedFile) => deleteStoredDocument(storedFile.id)),
@@ -318,23 +253,14 @@ export default function ProviderVerificationPage() {
     }
   }
 
-  async function removeDocument(name, id, partnerIndex) {
+  async function removeDocument(name, id) {
     setErrorMessage("");
     try {
       await deleteStoredDocument(id);
-      setVerification((current) => name === "partner_id_documents"
-        ? {
-            ...current,
-            partners: current.partners.map((partner, index) =>
-              index === partnerIndex
-                ? { ...partner, id_documents: partner.id_documents.filter((document) => document.id !== id) }
-                : partner,
-            ),
-          }
-        : {
-            ...current,
-            [name]: current[name].filter((document) => document.id !== id),
-          });
+      setVerification((current) => ({
+        ...current,
+        [name]: current[name].filter((document) => document.id !== id),
+      }));
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -374,12 +300,8 @@ export default function ProviderVerificationPage() {
     }
 
     if (details.company_type === "partnership") {
+      if (!details.business_registration_number.trim()) return "Enter the partnership registration number.";
       if (!details.partnership_documents.length) return "Upload an applicable partnership or business registration document.";
-      if (!details.partners.length) return "Add at least one partner.";
-      if (details.partners.some((partner) => !partner.name.trim())) return "Enter the full legal name for each partner.";
-      if (details.partners.some((partner) => !partner.id_type)) return "Choose an ID document type for each partner.";
-      if (details.partners.some((partner) => !partner.id_number.trim())) return "Enter an ID number for each partner.";
-      if (details.partners.some((partner) => !partner.id_documents.length)) return "Upload an ID document for each partner.";
     }
 
     if (details.company_type === "limited_company") {
@@ -407,7 +329,7 @@ export default function ProviderVerificationPage() {
     const record = {
       provider_id: providerId,
       updated_at: new Date().toISOString(),
-      type: details.company_type,
+      entity_type: details.company_type,
       personal_name: null,
       id_type: null,
       id_number: null,
@@ -464,42 +386,24 @@ export default function ProviderVerificationPage() {
     addPlans(
       "partnership_documents",
       details.partnership_documents,
-      details.business_registration_number || details.partners[0]?.id_number,
+      details.business_registration_number,
     );
     addPlans("incorporation_documents", details.incorporation_documents, details.company_registration_number);
     addPlans("representative_id_documents", details.representative_id_documents, details.representative_id_number);
     addPlans(
       "authority_documents",
       details.authority_documents,
-      details.representative_id_number || details.partners[0]?.id_number,
+      details.representative_id_number,
     );
     addPlans(
       "entity_registration_documents",
       details.entity_registration_documents,
       details.entity_registration_number || details.representative_id_number,
     );
-    for (const [partnerIndex, partner] of details.partners.entries()) {
-      addPlans("partner_id_documents", partner.id_documents, partner.id_number, partnerIndex);
-    }
     return plans;
   }
 
   function withDocumentStoragePath(details, plan, storagePath) {
-    if (plan.field === "partner_id_documents") {
-      return {
-        ...details,
-        partners: details.partners.map((partner, index) =>
-          index === plan.partnerIndex
-            ? {
-                ...partner,
-                id_documents: partner.id_documents.map((document) =>
-                  document.id === plan.document.id ? { ...document, storage_path: storagePath } : document,
-                ),
-              }
-            : partner,
-        ),
-      };
-    }
     return {
       ...details,
       [plan.field]: details[plan.field].map((document) =>
@@ -510,21 +414,36 @@ export default function ProviderVerificationPage() {
 
   async function uploadVerificationDocuments(details, providerId) {
     let savedDetails = details;
-    for (const plan of verificationDocumentPlans(details)) {
-      const extension = documentExtension({ name: plan.document.name, type: plan.document.type });
-      const filename = `${safeIdentifier(plan.identifier)}.${extension}`;
-      const storagePath = `${providerId}/documents/${plan.document.id}/${filename}`;
-      if (plan.document.storage_path === storagePath) continue;
+    const newPlans = verificationDocumentPlans(details).filter(
+      (plan) => !isLegalDocumentPath(plan.document.storage_path, providerId),
+    );
 
-      const file = await getStoredDocument(plan.document.id);
+    for (const plan of newPlans) {
+      const extension = documentExtension({ name: plan.document.name, type: plan.document.type });
+      const storagePath = `${providerId}/${plan.document.id}.${extension}`;
+
+      let file;
+      if (plan.document.storage_path) {
+        const { data, error } = await supabase.storage
+          .from(isLegacyLegalDocumentPath(plan.document.storage_path, providerId)
+            ? providerStorageBucket
+            : legalStorageBucket)
+          .download(plan.document.storage_path);
+        if (error) {
+          throw new Error(`Unable to retrieve previously uploaded document "${plan.document.name}": ${error.message}`);
+        }
+        file = data;
+      } else {
+        file = await getStoredDocument(plan.document.id);
+      }
       const { error } = await supabase.storage
-        .from("provider_images")
+        .from(legalStorageBucket)
         .upload(storagePath, file, {
-          contentType: file.type,
-          upsert: true,
+          contentType: file.type || plan.document.type,
+          upsert: false,
         });
       if (error) {
-        throw new Error(`Unable to upload "${plan.document.name}" to provider_images: ${error.message}`);
+        throw new Error(`Unable to upload "${plan.document.name}": ${error.message}`);
       }
 
       savedDetails = withDocumentStoragePath(savedDetails, plan, storagePath);
@@ -611,6 +530,17 @@ export default function ProviderVerificationPage() {
         }
         await uploadVerificationDocuments(details, draft.provider_id);
       }
+      if (typeof draft.provider_id !== "string" || !draft.provider_id) {
+        throw new Error("Your provider record could not be found. Go back and save your business details first.");
+      }
+      const { data: provider, error: stepError } = await supabase
+        .from("providers")
+        .update({ step: "payment" })
+        .eq("provider_id", draft.provider_id)
+        .select("provider_id")
+        .maybeSingle();
+      if (stepError) throw stepError;
+      if (!provider) throw new Error("The provider record could not be found or you do not have permission to save its onboarding progress.");
 
       const savedDetails = verification();
       window.sessionStorage.setItem(
@@ -643,31 +573,26 @@ export default function ProviderVerificationPage() {
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-4xl">
-        <Show when={import.meta.env.DEV}>
-          <button
-            type="button"
-            onClick={() => saveVerification(true)}
-            class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
-          >
-            Development only: skip this step <ArrowRight size={14} aria-hidden="true" />
-          </button>
-        </Show>
         <A
-          href="/provider/signup/gallery"
-          class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500"
+          href="/provider/dashboard"
+          onClick={(event) => {
+            event.preventDefault();
+            props.onStepChange?.("gallery");
+          }}
+          class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-text"
         >
           <ArrowLeft size={16} aria-hidden="true" />
           Back to photo gallery
         </A>
 
-        <header class="mt-7 rounded-[28px] border border-dry-sage-700 bg-dry-sage-900 p-5 sm:p-8">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-500">Provider onboarding · Step 4 of 5</p>
+        <header class="mt-7 rounded-7 border border-dry-sage-700 bg-dry-sage-900 p-5 sm:p-8">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">Provider onboarding · Step 4 of 5</p>
           <h1 class="mt-2 font-serif text-3xl tracking-[-0.04em] sm:text-4xl">Verify your business structure.</h1>
           <p class="mt-3 max-w-2xl text-sm leading-6 text-dust-grey-200">
             Select your legal structure and provide the relevant identity and registration documents.
           </p>
           <div class="mt-6" aria-label="Signup progress">
-            <div class="flex items-center justify-between text-xs font-medium text-dust-grey-300">
+            <div class="flex items-center justify-between text-xs font-medium text-dust-grey-text">
               <span>Business verification</span>
               <span>80%</span>
             </div>
@@ -678,10 +603,10 @@ export default function ProviderVerificationPage() {
         </header>
 
         <Show when={!draftAvailable() && !errorMessage()}>
-          <section class="mt-6 rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-6 sm:p-8">
+          <section class="mt-6 rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-6 sm:p-8">
             <h2 class="font-serif text-2xl">Complete the earlier steps first</h2>
-            <p class="mt-2 text-sm leading-6 text-dust-grey-300">Save your provider details before completing verification.</p>
-            <A href="/provider/signup" class="mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white hover:bg-hunter-green-400">
+            <p class="mt-2 text-sm leading-6 text-dust-grey-text">Save your provider details before completing verification.</p>
+            <A             href="#" onClick={(event) => { event.preventDefault(); props.onStepChange?.("business"); }} class="mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white hover:bg-hunter-green-400">
               Go to business details <ArrowRight size={16} aria-hidden="true" />
             </A>
           </section>
@@ -693,7 +618,7 @@ export default function ProviderVerificationPage() {
 
         <Show when={draftAvailable()}>
           <Show when={!isSaved()} fallback={
-            <section role="status" class="mt-6 rounded-[28px] border border-dry-sage-700 bg-dry-sage-900 p-6 sm:p-8">
+            <section role="status" class="mt-6 rounded-7 border border-dry-sage-700 bg-dry-sage-900 p-6 sm:p-8">
               <span class="flex size-12 items-center justify-center rounded-2xl bg-hunter-green-500 text-white"><Check size={22} aria-hidden="true" /></span>
               <h2 class="mt-4 font-serif text-2xl tracking-[-0.035em]">
                 {isSkippedForDevelopment() ? "Verification step skipped for development." : "Verification details saved."}
@@ -701,23 +626,23 @@ export default function ProviderVerificationPage() {
               <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
                 {isSkippedForDevelopment()
                   ? "Verification was bypassed for development."
-                  : `Selected company type: ${companyTypeLabel()}. Legal identity and registration fields were saved to Supabase, and documents were uploaded to provider_images/<provider_id>/documents/. Partnership member details remain in this browser.`}
+                  : `Selected company type: ${companyTypeLabel()}. Your legal identity details and supporting documents have been saved securely. Partnership members can be added later from the Partners section.`}
               </p>
               <div class="mt-5 flex flex-wrap items-center gap-5">
                 <button type="button" onClick={() => setIsSaved(false)} class="text-sm font-semibold text-hunter-green-500 hover:underline">Edit verification details</button>
-                <A href="/provider/signup/payment" class="inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
+                <A href="#" onClick={(event) => { event.preventDefault(); props.onStepChange?.("payment"); }} class="inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
                   Continue to M-PESA setup <ArrowRight size={16} aria-hidden="true" />
                 </A>
               </div>
             </section>
           }>
             <form onSubmit={(event) => { event.preventDefault(); saveVerification(); }} class="mt-6 space-y-6">
-              <section class="rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+              <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
                 <div class="flex items-start gap-3">
                   <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-dry-sage-900 text-hunter-green-500"><BadgeCheck size={19} aria-hidden="true" /></span>
                   <div>
                     <h2 class="font-serif text-2xl tracking-[-0.035em]">Company type <span class="text-rose-600">*</span></h2>
-                    <p class="mt-1 text-sm text-dust-grey-300">Choose the structure that best describes the provider. Changing this choice clears the current verification details and selected files.</p>
+                    <p class="mt-1 text-sm text-dust-grey-text">Choose the structure that best describes the provider. Changing this choice clears the current verification details and selected files.</p>
                   </div>
                 </div>
                 <fieldset class="mt-6 grid gap-3 sm:grid-cols-2">
@@ -730,7 +655,7 @@ export default function ProviderVerificationPage() {
                           : "border-dust-grey-600 bg-dust-grey-900 hover:border-dry-sage-500"
                       }`}>
                         <input type="radio" name="company_type" value={type.value} checked={verification().company_type === type.value} onChange={() => selectCompanyType(type.value)} disabled={isUploading()} required class="mt-1 size-4 shrink-0 accent-hunter-green-500 disabled:cursor-wait" />
-                        <span><span class="block text-sm font-semibold">{type.label}</span><span class="mt-1 block text-xs leading-5 text-dust-grey-300">{type.description}</span></span>
+                        <span><span class="block text-sm font-semibold">{type.label}</span><span class="mt-1 block text-xs leading-5 text-dust-grey-text">{type.description}</span></span>
                       </label>
                     )}
                   </For>
@@ -740,9 +665,9 @@ export default function ProviderVerificationPage() {
               <Show when={verification().company_type}>
                 <section class="space-y-6">
                   <Show when={["individual_provider", "sole_proprietor"].includes(verification().company_type)}>
-                    <section class="rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+                    <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
                       <h2 class="font-serif text-2xl">Personal identity</h2>
-                      <p class="mt-1 text-sm text-dust-grey-300">
+                      <p class="mt-1 text-sm text-dust-grey-text">
                         {verification().company_type === "individual_provider" ? "Individual provider" : "Owner"} details and identification.
                       </p>
                       <div class="mt-5 grid gap-5 sm:grid-cols-2">
@@ -764,9 +689,9 @@ export default function ProviderVerificationPage() {
                   </Show>
 
                   <Show when={verification().company_type === "sole_proprietor"}>
-                    <section class="rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+                    <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
                       <h2 class="font-serif text-2xl">Business registration</h2>
-                      <p class="mt-1 text-sm text-dust-grey-300">No certificate of incorporation is needed for a sole proprietor.</p>
+                      <p class="mt-1 text-sm text-dust-grey-text">No certificate of incorporation is needed for a sole proprietor.</p>
                       <div class="mt-5 grid gap-5 sm:grid-cols-2">
                         <Field label="Business or trading name" required class="sm:col-span-2">
                           <input class={inputClass} value={verification().business_name} onInput={(event) => updateField("business_name", event.currentTarget.value)} required />
@@ -780,7 +705,7 @@ export default function ProviderVerificationPage() {
                   </Show>
 
                   <Show when={["partnership", "limited_company", "other_registered_entity"].includes(verification().company_type)}>
-                    <section class="rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+                    <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
                       <h2 class="font-serif text-2xl">Entity registration</h2>
                       <div class="mt-5 grid gap-5 sm:grid-cols-2">
                         <Field
@@ -790,14 +715,19 @@ export default function ProviderVerificationPage() {
                         >
                           <input class={inputClass} value={verification().legal_name} onInput={(event) => updateField("legal_name", event.currentTarget.value)} required />
                         </Field>
+                        <Show when={verification().company_type === "partnership"}>
+                          <p class="rounded-xl border border-dry-sage-700 bg-dry-sage-900 px-4 py-3 text-sm leading-6 text-dust-grey-200 sm:col-span-2">
+                            Complete the partnership entity registration here. You can add partner names and identification details later in the Partners section of your provider workspace.
+                          </p>
+                        </Show>
                         <Show when={verification().company_type === "other_registered_entity"}>
                           <Field label="Entity type" required>
                             <input class={inputClass} value={verification().entity_type} onInput={(event) => updateField("entity_type", event.currentTarget.value)} placeholder="For example, trust or association" required />
                           </Field>
                         </Show>
                         <Show when={verification().company_type === "partnership"}>
-                          <Field label="Partnership registration number">
-                            <input class={inputClass} value={verification().business_registration_number} onInput={(event) => updateField("business_registration_number", event.currentTarget.value)} />
+                          <Field label="Partnership registration number" required>
+                            <input class={inputClass} value={verification().business_registration_number} onInput={(event) => updateField("business_registration_number", event.currentTarget.value)} required />
                           </Field>
                         </Show>
                         <Show when={verification().company_type === "limited_company"}>
@@ -823,87 +753,27 @@ export default function ProviderVerificationPage() {
                     </section>
                   </Show>
 
-                  <Show when={["partnership", "limited_company", "other_registered_entity"].includes(verification().company_type)}>
-                    <section class="rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
-                      <Show
-                        when={verification().company_type === "partnership"}
-                        fallback={
-                          <>
-                            <h2 class="font-serif text-2xl">Representative identity</h2>
-                            <p class="mt-1 text-sm text-dust-grey-300">Keep the representative’s identification separate from entity documents.</p>
-                            <div class="mt-5 grid gap-5 sm:grid-cols-2">
-                              <Field label={verification().company_type === "limited_company" ? "Director or authorized representative's full legal name" : "Authorized representative's full legal name"} required class="sm:col-span-2">
-                                <input class={inputClass} value={verification().representative_name} onInput={(event) => updateField("representative_name", event.currentTarget.value)} required />
-                              </Field>
-                              <Field label="Representative's ID document type" required>
-                                <select class={inputClass} value={verification().representative_id_type} onChange={(event) => updateField("representative_id_type", event.currentTarget.value)} required>
-                                  <option value="">Choose document type</option>
-                                  <For each={idTypes}>{(type) => <option value={type.value}>{type.label}</option>}</For>
-                                </select>
-                              </Field>
-                              <Field label="Representative's ID number" required>
-                                <input class={inputClass} value={verification().representative_id_number} onInput={(event) => updateField("representative_id_number", event.currentTarget.value)} required />
-                              </Field>
-                              <DocumentList label="Representative's ID document" required name="representative_id_documents" documents={verification().representative_id_documents} uploading={isUploading()} onAdd={addDocuments} onRemove={removeDocument} class="sm:col-span-2" />
-                            </div>
-                          </>
-                        }
-                      >
-                        <div class="flex flex-wrap items-start justify-between gap-4">
-                          <div>
-                            <h2 class="font-serif text-2xl">Partnership members</h2>
-                            <p class="mt-1 text-sm text-dust-grey-300">Add each partner’s legal name and identification details.</p>
-                          </div>
-                          <button type="button" onClick={addPartner} disabled={isUploading()} class="inline-flex h-10 items-center gap-2 rounded-xl border border-dry-sage-700 px-4 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-900 disabled:opacity-60">
-                            <Plus size={16} aria-hidden="true" /> Add partner
-                          </button>
-                        </div>
-                        <div class="mt-5 space-y-4">
-                          <For each={verification().partners}>
-                            {(partner, index) => (
-                              <article class="rounded-2xl border border-dust-grey-600 bg-dust-grey-800 p-4 sm:p-5">
-                                <div class="mb-4 flex items-center justify-between gap-3">
-                                  <h3 class="text-sm font-semibold text-dust-grey-100">Partner {index() + 1}</h3>
-                                  <button type="button" onClick={() => removePartner(index())} disabled={isUploading()} aria-label={`Remove partner ${index() + 1}`} class="flex size-9 items-center justify-center rounded-xl text-dust-grey-300 transition hover:bg-rose-50 hover:text-rose-700 disabled:opacity-60">
-                                    <Trash2 size={16} aria-hidden="true" />
-                                  </button>
-                                </div>
-                                <div class="grid gap-5 sm:grid-cols-2">
-                                  <Field label="Partner's full legal name" required class="sm:col-span-2">
-                                    <input class={inputClass} value={partner.name} onInput={(event) => updatePartner(index(), "name", event.currentTarget.value)} required />
-                                  </Field>
-                                  <Field label="ID document type" required>
-                                    <select class={inputClass} value={partner.id_type} onChange={(event) => updatePartner(index(), "id_type", event.currentTarget.value)} required>
-                                      <option value="">Choose document type</option>
-                                      <For each={idTypes}>{(type) => <option value={type.value}>{type.label}</option>}</For>
-                                    </select>
-                                  </Field>
-                                  <Field label="ID number" required>
-                                    <input class={inputClass} value={partner.id_number} onInput={(event) => updatePartner(index(), "id_number", event.currentTarget.value)} required />
-                                  </Field>
-                                  <DocumentList
-                                    label="Partner's ID document"
-                                    required
-                                    name="partner_id_documents"
-                                    documents={partner.id_documents}
-                                    uploading={isUploading()}
-                                    onAdd={(name, event) => addDocuments(name, event, index())}
-                                    onRemove={(name, id) => removeDocument(name, id, index())}
-                                    class="sm:col-span-2"
-                                  />
-                                </div>
-                              </article>
-                            )}
-                          </For>
-                          <Show when={verification().partners.length === 0}>
-                            <p class="rounded-xl border border-dashed border-dust-grey-600 px-4 py-6 text-center text-sm text-dust-grey-300">
-                              Add at least one partner to provide partnership identity details.
-                            </p>
-                          </Show>
-                        </div>
-                      </Show>
+                  <Show when={["limited_company", "other_registered_entity"].includes(verification().company_type)}>
+                    <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+                      <h2 class="font-serif text-2xl">Representative identity</h2>
+                      <p class="mt-1 text-sm text-dust-grey-text">Keep the representative’s identification separate from entity documents.</p>
                       <div class="mt-5 grid gap-5 sm:grid-cols-2">
-                        <DocumentList label="Proof of authority to represent" name="authority_documents" documents={verification().authority_documents} uploading={isUploading()} onAdd={addDocuments} onRemove={removeDocument} class="sm:col-span-2" hint={verification().company_type === "limited_company" ? "Add this if the submitted documents do not establish the representative's authority." : "Add this where necessary, such as an authorization letter or supporting partnership document."} />
+                        <Field label={verification().company_type === "limited_company" ? "Director or authorized representative's full legal name" : "Authorized representative's full legal name"} required class="sm:col-span-2">
+                          <input class={inputClass} value={verification().representative_name} onInput={(event) => updateField("representative_name", event.currentTarget.value)} required />
+                        </Field>
+                        <Field label="Representative's ID document type" required>
+                          <select class={inputClass} value={verification().representative_id_type} onChange={(event) => updateField("representative_id_type", event.currentTarget.value)} required>
+                            <option value="">Choose document type</option>
+                            <For each={idTypes}>{(type) => <option value={type.value}>{type.label}</option>}</For>
+                          </select>
+                        </Field>
+                        <Field label="Representative's ID number" required>
+                          <input class={inputClass} value={verification().representative_id_number} onInput={(event) => updateField("representative_id_number", event.currentTarget.value)} required />
+                        </Field>
+                        <DocumentList label="Representative's ID document" required name="representative_id_documents" documents={verification().representative_id_documents} uploading={isUploading()} onAdd={addDocuments} onRemove={removeDocument} class="sm:col-span-2" />
+                      </div>
+                      <div class="mt-5 grid gap-5 sm:grid-cols-2">
+                        <DocumentList label="Proof of authority to represent" name="authority_documents" documents={verification().authority_documents} uploading={isUploading()} onAdd={addDocuments} onRemove={removeDocument} class="sm:col-span-2" hint={verification().company_type === "limited_company" ? "Add this if the submitted documents do not establish the representative's authority." : "Add this if the submitted registration documents do not establish the representative's authority."} />
                       </div>
                     </section>
                   </Show>
@@ -914,8 +784,8 @@ export default function ProviderVerificationPage() {
                 <p role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage()}</p>
               </Show>
               <div class="flex flex-col-reverse justify-between gap-3 border-t border-dust-grey-700 pt-5 sm:flex-row sm:items-center">
-                <p class="text-xs leading-5 text-dust-grey-300">Legal identity and registration fields save to legalities. Documents upload to provider_images/&lt;provider_id&gt;/documents/ with their ID or registration number as the filename. Partnership member details stay in this browser.</p>
-                <button type="submit" disabled={isUploading() || isSaving()} class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-wait disabled:opacity-60">
+                <p class="text-xs leading-5 text-dust-grey-text">Your legal identity and entity registration details are saved securely. Add partnership members later from the Partners section of your provider workspace.</p>
+                <button type="submit" disabled={isUploading() || isSaving()} class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-wait disabled:opacity-60">
                   {isSaving() ? "Saving…" : "Save verification details"} <Check size={16} aria-hidden="true" />
                 </button>
               </div>
@@ -940,7 +810,7 @@ function DocumentList(props) {
           onChange={(event) => props.onAdd(props.name, event)}
         />
         <Show when={props.required}>
-          <span class="mt-1 block text-xs text-dust-grey-300">Upload at least one document. You may select multiple files.</span>
+          <span class="mt-1 block text-xs text-dust-grey-text">Upload at least one document. You may select multiple files.</span>
         </Show>
         <Show when={props.documents.length > 0}>
           <ul class="mt-3 space-y-2">
@@ -950,7 +820,7 @@ function DocumentList(props) {
                   <span class="flex min-w-0 items-center gap-2 text-xs text-dust-grey-200">
                     <FileText size={15} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
                     <span class="truncate">{document.name}</span>
-                    <span class="shrink-0 text-dust-grey-300">({(document.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                    <span class="shrink-0 text-dust-grey-text">({(document.size / (1024 * 1024)).toFixed(2)} MB)</span>
                     <Show when={document.storage_path}>
                       <span class="shrink-0 font-semibold text-hunter-green-500">Uploaded</span>
                     </Show>
@@ -959,7 +829,7 @@ function DocumentList(props) {
                     type="button"
                     aria-label={`Remove ${document.name}`}
                     onClick={() => props.onRemove(props.name, document.id)}
-                    class="flex size-8 shrink-0 items-center justify-center rounded-lg text-dust-grey-300 transition hover:bg-rose-50 hover:text-rose-700"
+                    class="flex size-8 shrink-0 items-center justify-center rounded-lg text-dust-grey-text transition hover:bg-rose-50 hover:text-rose-700"
                   >
                     <Trash2 size={15} aria-hidden="true" />
                   </button>

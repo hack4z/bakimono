@@ -2,9 +2,13 @@ import { createSignal, onCleanup, onMount } from "solid-js";
 import { Moon, Sun } from "lucide-solid";
 
 const storageKey = "bakimono-theme";
+const CHROME = { light: "#344e41", dark: "#1c2620" };
 
 function applyTheme(isDark) {
   document.documentElement.classList.toggle("dark", isDark);
+  document
+    .getElementById("theme-color")
+    ?.setAttribute("content", isDark ? CHROME.dark : CHROME.light);
   window.dispatchEvent(new CustomEvent("bakimono-theme-change", { detail: isDark }));
 }
 

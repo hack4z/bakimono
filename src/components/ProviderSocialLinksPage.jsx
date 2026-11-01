@@ -1,11 +1,12 @@
 import { A } from "@solidjs/router";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, Index, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, FileText, Link2, Plus, Trash2 } from "lucide-solid";
 import { supabase } from "~/utils/supabase";
+import { providerStorageBucket } from "~/utils/provider-storage";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =
-  "h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-300 focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";
+  "h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-text focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";
 const emptySocialLink = () => ({ provider: "", link: "" });
 const emptyPolicy = () => ({ id: crypto.randomUUID(), type: "", file: null });
 const policyTypes = [
@@ -36,18 +37,27 @@ function isHttpUrl(value) {
   }
 }
 
-function safePolicyFileName(name) {
-  const safeName = name
-    .split(/[\\/]/)
-    .pop()
-    .normalize("NFKD")
-    .replace(/[^\w.-]+/g, "_")
-    .replace(/^\.+/, "")
-    .slice(0, 120);
-  return safeName || "policy-document";
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return "Size unavailable";
+  return bytes < 1024 ? `${bytes} bytes` : `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-export default function ProviderSocialLinksPage() {
+function policyLabel(type) {
+  return policyTypes.find((option) => option.value === type)?.label ?? "Business policy";
+}
+
+function policyFileExtension(file) {
+  const extensionsByType = {
+    "application/pdf": "pdf",
+    "text/plain": "txt",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  };
+  const extension = extensionsByType[file.type];
+  if (extension) return extension;
+  throw new Error(`Unable to determine a supported file extension for "${file.name}".`);
+}
+
+export default function ProviderSocialLinksPage(props) {
   const [socialLinks, setSocialLinks] = createSignal([emptySocialLink()]);
   const [policies, setPolicies] = createSignal([]);
   const [draftAvailable, setDraftAvailable] = createSignal(false);
@@ -203,7 +213,7 @@ export default function ProviderSocialLinksPage() {
       }));
       const { count, error } = await supabase
         .from("providers")
-        .update({ social_links: entries }, { count: "exact" })
+        .update({ social_links: entries, step: "gallery" }, { count: "exact" })
         .eq("provider_id", draft.provider_id);
       if (error) throw error;
       if (count !== 1) {
@@ -219,17 +229,29 @@ export default function ProviderSocialLinksPage() {
         }),
       );
 
+      const { data: existingFiles, error: listError } = await supabase.storage
+        .from(providerStorageBucket)
+        .list(`${draft.provider_id}/policies`, { limit: 1000 });
+      if (listError) {
+        throw new Error(`Unable to check existing policy files: ${listError.message}`);
+      }
+      const highestExistingNumber = (existingFiles ?? []).reduce((highest, file) => {
+        const match = /^(\d+)\.(?:pdf|txt|docx)$/i.exec(file.name);
+        return match ? Math.max(highest, Number(match[1])) : highest;
+      }, 0);
+      let nextPolicyNumber = highestExistingNumber + 1;
       const savedPolicies = [];
       for (const policy of policyDrafts) {
         if (policy.file?.data) {
           const fileBlob = await (await fetch(policy.file.data)).blob();
-          const fileName = safePolicyFileName(policy.file.name);
-          const storagePath = `${draft.provider_id}/policies/${policy.type}-${policy.id}-${fileName}`;
+          const extension = policyFileExtension(policy.file);
+          const storagePath = `${draft.provider_id}/policies/${nextPolicyNumber}.${extension}`;
+          nextPolicyNumber += 1;
           const { error: uploadError } = await supabase.storage
-            .from("provider_images")
+            .from(providerStorageBucket)
             .upload(storagePath, fileBlob, {
               contentType: policy.file.type,
-              upsert: true,
+              upsert: false,
             });
           if (uploadError) {
             throw new Error(`Unable to upload policy file "${policy.file.name}": ${uploadError.message}`);
@@ -271,7 +293,7 @@ export default function ProviderSocialLinksPage() {
     }
   }
 
-  function skipStepForDevelopment() {
+  async function skipStepForDevelopment() {
     setErrorMessage("");
     try {
       const savedDraft = window.sessionStorage.getItem(draftKey);
@@ -290,6 +312,16 @@ export default function ProviderSocialLinksPage() {
       const completePolicies = policies()
         .filter(({ type, file }) => type && file)
         .map(({ type, file }) => ({ type, file }));
+      if (typeof draft.provider_id === "string" && draft.provider_id) {
+        const { data, error: stepError } = await supabase
+          .from("providers")
+          .update({ step: "gallery" })
+          .eq("provider_id", draft.provider_id)
+          .select("provider_id")
+          .maybeSingle();
+        if (stepError) throw stepError;
+        if (!data) throw new Error("The provider record could not be found or you do not have permission to save its onboarding progress.");
+      }
       window.sessionStorage.setItem(
         draftKey,
         JSON.stringify({
@@ -315,25 +347,20 @@ export default function ProviderSocialLinksPage() {
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
       <div class="mx-auto max-w-4xl">
-        <Show when={import.meta.env.DEV}>
-          <button
-            type="button"
-            onClick={skipStepForDevelopment}
-            class="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
-          >
-            Development only: skip this step <ArrowRight size={14} aria-hidden="true" />
-          </button>
-        </Show>
         <A
-          href="/provider/signup"
-          class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-500"
+          href="#"
+          onClick={(event) => {
+            event.preventDefault();
+            props.onStepChange?.("business");
+          }}
+          class="inline-flex items-center gap-2 text-sm font-semibold text-hunter-green-500 transition hover:text-fern-text"
         >
           <ArrowLeft size={16} aria-hidden="true" />
           Back to business details
         </A>
 
-        <header class="mt-7 rounded-[28px] border border-dry-sage-700 bg-dry-sage-900 p-5 sm:p-8">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-500">Provider onboarding · Step 2 of 5</p>
+        <header class="mt-7 rounded-7 border border-dry-sage-700 bg-dry-sage-900 p-5 sm:p-8">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">Provider onboarding · Step 2 of 5</p>
           <h1 class="mt-2 font-serif text-3xl tracking-[-0.04em] sm:text-4xl">
             Add your social links.
           </h1>
@@ -341,7 +368,7 @@ export default function ProviderSocialLinksPage() {
             Help customers find you online. Add a social profile or website, and include as many links as you need.
           </p>
           <div class="mt-6" aria-label="Signup progress">
-            <div class="flex items-center justify-between text-xs font-medium text-dust-grey-300">
+            <div class="flex items-center justify-between text-xs font-medium text-dust-grey-text">
               <span>Social links</span>
               <span>40%</span>
             </div>
@@ -359,13 +386,17 @@ export default function ProviderSocialLinksPage() {
         </header>
 
         <Show when={!draftAvailable() && !errorMessage()}>
-          <section class="mt-6 rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-6 sm:p-8">
+          <section class="mt-6 rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-6 sm:p-8">
             <h2 class="font-serif text-2xl">Complete step 1 first</h2>
-            <p class="mt-2 text-sm leading-6 text-dust-grey-300">
+            <p class="mt-2 text-sm leading-6 text-dust-grey-text">
               Save your business details before adding social links.
             </p>
             <A
-              href="/provider/signup"
+              href="#"
+              onClick={(event) => {
+                event.preventDefault();
+                props.onStepChange?.("business");
+              }}
               class="mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white hover:bg-hunter-green-400"
             >
               Go to business details <ArrowRight size={16} aria-hidden="true" />
@@ -383,7 +414,7 @@ export default function ProviderSocialLinksPage() {
           <Show
             when={!saved()}
             fallback={
-              <section role="status" class="mt-6 rounded-[28px] border border-dry-sage-700 bg-dry-sage-900 p-6 sm:p-8">
+              <section role="status" class="mt-6 rounded-7 border border-dry-sage-700 bg-dry-sage-900 p-6 sm:p-8">
                 <span class="flex size-12 items-center justify-center rounded-2xl bg-hunter-green-500 text-white">
                   <Check size={22} aria-hidden="true" />
                 </span>
@@ -393,8 +424,32 @@ export default function ProviderSocialLinksPage() {
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
                   {skippedForDevelopment()
                     ? "This step was bypassed without requiring social links or policies."
-                    : "Your social links are saved in Supabase and policy files are uploaded to provider_images. Their storage paths are kept in the temporary browser draft."}
+                    : "Your social links are saved in Supabase and policy files are uploaded to the private providers bucket. Their storage paths are kept in the temporary browser draft."}
                 </p>
+                <Show when={!skippedForDevelopment() && policies().length > 0}>
+                  <section aria-label="Uploaded policy files" class="mt-6">
+                    <h3 class="text-sm font-semibold">Uploaded policy files</h3>
+                    <ul class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <For each={policies()}>
+                        {(policy) => (
+                          <li class="flex min-w-0 items-center gap-3 rounded-2xl border border-fern-700 bg-fern-900/50 p-4">
+                            <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-hunter-green-500 text-white">
+                              <FileText size={20} aria-hidden="true" />
+                            </span>
+                            <span class="min-w-0 flex-1">
+                              <span class="block text-xs font-semibold uppercase tracking-wide text-fern-300">{policyLabel(policy.type)}</span>
+                              <span class="mt-1 block truncate text-sm font-semibold text-dust-grey-100" title={policy.file?.name}>{policy.file?.name ?? "Policy document"}</span>
+                              <span class="mt-1 block text-xs text-dust-grey-text">
+                                {formatFileSize(policy.file?.bytes)} · {policy.storage_path ? "Uploaded" : "Saved"}
+                              </span>
+                            </span>
+                            <Check size={18} class="shrink-0 text-fern-300" aria-label="Uploaded" />
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </section>
+                </Show>
                 <div class="mt-5 flex flex-wrap gap-5">
                   <button
                     type="button"
@@ -404,7 +459,11 @@ export default function ProviderSocialLinksPage() {
                     Edit social links
                   </button>
                   <A
-                    href="/provider/signup/gallery"
+                    href="#"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      props.onStepChange?.("gallery");
+                    }}
                     class="inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400"
                   >
                     Continue to photo gallery <ArrowRight size={16} aria-hidden="true" />
@@ -413,28 +472,28 @@ export default function ProviderSocialLinksPage() {
               </section>
             }
           >
-            <form onSubmit={handleSubmit} class="mt-6 rounded-[28px] border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+            <form onSubmit={handleSubmit} class="mt-6 rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
               <div class="flex items-start gap-3">
                 <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-dry-sage-900 text-hunter-green-500">
                   <Link2 size={19} aria-hidden="true" />
                 </span>
                 <div>
                   <h2 class="font-serif text-2xl tracking-[-0.035em]">Social profiles and website</h2>
-                  <p class="mt-1 text-sm text-dust-grey-300">Add at least one complete link. Every row needs a provider and a URL.</p>
+                  <p class="mt-1 text-sm text-dust-grey-text">Add at least one complete link. Every row needs a provider and a URL.</p>
                 </div>
               </div>
 
               <div class="mt-6 space-y-4">
-                <For each={socialLinks()}>
+                <Index each={socialLinks()}>
                   {(socialLink, index) => (
                     <div class="grid gap-3 rounded-2xl border border-dust-grey-700 bg-dust-grey-800 p-4 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_auto] sm:items-end">
                       <label class="block">
                         <span class="mb-2 block text-sm font-medium">Provider <span class="text-rose-600">*</span></span>
                         <select
                           class={inputClass}
-                          value={socialLink.provider}
+                          value={socialLink().provider}
                           required
-                          onChange={(event) => updateSocialLink(index(), "provider", event.currentTarget.value)}
+                          onChange={(event) => updateSocialLink(index, "provider", event.currentTarget.value)}
                         >
                           <option value="">Choose a provider</option>
                           <For each={providers}>
@@ -447,19 +506,19 @@ export default function ProviderSocialLinksPage() {
                         <input
                           class={inputClass}
                           type="url"
-                          value={socialLink.link}
+                          value={socialLink().link}
                           required
                           placeholder="https://"
                           autocomplete="url"
-                          onInput={(event) => updateSocialLink(index(), "link", event.currentTarget.value)}
+                          onInput={(event) => updateSocialLink(index, "link", event.currentTarget.value)}
                         />
                       </label>
                       <button
                         type="button"
-                        aria-label={`Remove social link ${index() + 1}`}
+                        aria-label={`Remove social link ${index + 1}`}
                         title="Remove link"
                         disabled={socialLinks().length === 1}
-                        onClick={() => setSocialLinks((current) => current.filter((_, itemIndex) => itemIndex !== index()))}
+                        onClick={() => setSocialLinks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                         class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-dust-grey-600 px-3 text-sm font-medium text-dust-grey-200 transition hover:border-rose-400 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-11 sm:px-0"
                       >
                         <Trash2 size={16} aria-hidden="true" />
@@ -467,7 +526,7 @@ export default function ProviderSocialLinksPage() {
                       </button>
                     </div>
                   )}
-                </For>
+                </Index>
               </div>
 
               <button
@@ -483,9 +542,9 @@ export default function ProviderSocialLinksPage() {
                 <div class="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <h3 id="provider-policies-title" class="font-serif text-xl tracking-[-0.03em]">
-                      Business policies <span class="font-sans text-sm font-normal text-dust-grey-300">(optional)</span>
+                      Business policies <span class="font-sans text-sm font-normal text-dust-grey-text">(optional)</span>
                     </h3>
-                    <p class="mt-1 max-w-2xl text-sm leading-6 text-dust-grey-300">
+                    <p class="mt-1 max-w-2xl text-sm leading-6 text-dust-grey-text">
                       Add policy documents for customers to review. Choose a type and upload the matching file for each policy.
                     </p>
                   </div>
@@ -499,7 +558,7 @@ export default function ProviderSocialLinksPage() {
                   </button>
                 </div>
                 <Show when={policies().length > 0} fallback={
-                  <p class="mt-4 rounded-xl bg-dust-grey-800 px-4 py-3 text-xs leading-5 text-dust-grey-300">
+                  <p class="mt-4 rounded-xl bg-dust-grey-800 px-4 py-3 text-xs leading-5 text-dust-grey-text">
                     No policy documents added. This section is optional.
                   </p>
                 }>
@@ -521,24 +580,40 @@ export default function ProviderSocialLinksPage() {
                               </For>
                             </select>
                           </label>
-                          <label class="block">
+                          <div class="min-w-0">
                             <span class="mb-2 block text-sm font-medium">Policy file</span>
                             <input
-                              class={policyInputClass}
+                              id={`provider-policy-file-${policy.id}`}
+                              class="peer sr-only"
                               type="file"
                               accept=".pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                              aria-label={`Choose ${policyLabel(policy.type)} file`}
                               onChange={(event) => handlePolicyFileChange(index(), event)}
                             />
-                            <Show when={policy.file}>
-                              <span class="mt-1.5 flex items-center gap-1.5 text-xs text-dust-grey-300">
-                                <FileText size={13} aria-hidden="true" />
-                                {policy.file.name}
-                                <Show when={policy.storage_path}>
-                                  <span class="text-fern-500">Uploaded</span>
-                                </Show>
+                            <label
+                              for={`provider-policy-file-${policy.id}`}
+                              class="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-hunter-green-400 bg-dry-sage-900 px-4 py-3 text-sm transition hover:border-hunter-green-500 hover:bg-dry-sage-800 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-hunter-green-500"
+                            >
+                              <span class="flex min-w-0 items-center gap-3">
+                                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-hunter-green-500 text-white">
+                                  <FileText size={17} aria-hidden="true" />
+                                </span>
+                                <span class="min-w-0">
+                                  <span class="block truncate font-semibold text-dust-grey-100">
+                                    {policy.file?.name ?? "Choose a policy document"}
+                                  </span>
+                                  <span class="mt-0.5 block text-xs text-dust-grey-text">
+                                    {policy.file
+                                      ? `${formatFileSize(policy.file.bytes)} · ${policy.storage_path ? "Uploaded" : "Ready to upload"}`
+                                      : "PDF, TXT, or DOCX · 512 KB maximum"}
+                                  </span>
+                                </span>
                               </span>
-                            </Show>
-                          </label>
+                              <span class="shrink-0 rounded-lg bg-hunter-green-500 px-3 py-2 text-xs font-semibold text-white">
+                                {policy.file ? "Replace" : "Browse"}
+                              </span>
+                            </label>
+                          </div>
                           <button
                             type="button"
                             aria-label={`Remove policy ${index() + 1}`}
@@ -553,13 +628,13 @@ export default function ProviderSocialLinksPage() {
                     </For>
                   </div>
                 </Show>
-                <p class="mt-3 text-xs leading-5 text-dust-grey-300">
-                  Accepts PDF, TXT, or DOCX files up to 512 KB each (1 MB total). Files upload to provider_images/&lt;provider_id&gt;/policies/ when you save.
+                <p class="mt-3 text-xs leading-5 text-dust-grey-text">
+                  Accepts PDF, TXT, or DOCX files up to 512 KB each (1 MB total). Files upload as increasing numbers, such as providers/&lt;provider_id&gt;/policies/1.pdf.
                 </p>
               </section>
 
               <div class="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-dust-grey-700 pt-5 sm:flex-row sm:items-center">
-                <p class="text-xs leading-5 text-dust-grey-300">Social links are saved to your provider record and policy files upload to provider_images.</p>
+                <p class="text-xs leading-5 text-dust-grey-text">Social links are saved to your provider record and policy files upload to the private providers bucket.</p>
                 <button
                   type="submit"
                   disabled={isSubmitting()}

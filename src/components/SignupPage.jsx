@@ -1,10 +1,11 @@
 import { createSignal, Show } from "solid-js";
-import { A } from "@solidjs/router";
+import { A, useNavigate } from "@solidjs/router";
 import { ArrowRight, Eye, EyeOff, MapPin, Sparkles } from "lucide-solid";
 import GoogleSignInButton from "~/components/GoogleSignInButton";
+import { getSupabaseErrorMessage, supabase } from "~/utils/supabase";
 
 const inputClass =
-  "h-[50px] w-full rounded-xl border border-dust-grey-600 bg-white px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-300 focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";
+  "h-12.5 w-full rounded-xl border border-dust-grey-600 bg-white px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-text focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";
 
 function Field(props) {
   return (
@@ -26,14 +27,45 @@ function Field(props) {
 }
 
 export default function SignupPage() {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = createSignal(false);
   const [message, setMessage] = createSignal("");
+  const [errorMessage, setErrorMessage] = createSignal("");
+  const [submitting, setSubmitting] = createSignal(false);
   const [acceptedTerms, setAcceptedTerms] = createSignal(false);
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
-    if (!acceptedTerms()) return;
-    setMessage("Account creation is not connected yet. Please check back soon.");
+    if (!acceptedTerms() || submitting()) return;
+
+    setMessage("");
+    setErrorMessage("");
+    setSubmitting(true);
+
+    try {
+      const form = new FormData(event.currentTarget);
+      const email = String(form.get("email") ?? "").trim().toLowerCase();
+      const password = String(form.get("password") ?? "");
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (signUpError) throw signUpError;
+      if (!authData.user) {
+        throw new Error("Supabase did not return a user after signup.");
+      }
+
+      if (authData.session) {
+        navigate("/settings", { replace: true });
+        return;
+      }
+
+      setMessage("Your account was created. Check your email to confirm your address, then complete your profile in Settings.");
+    } catch (error) {
+      setErrorMessage(getSupabaseErrorMessage(error, "Unable to create your account."));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -58,56 +90,25 @@ export default function SignupPage() {
             <div class="mt-7">
               <GoogleSignInButton disabled={!acceptedTerms()} />
               <Show when={!acceptedTerms()}>
-                <p class="mt-2 text-center text-xs text-dust-grey-300">
+                <p class="mt-2 text-center text-xs text-dust-grey-text">
                   Accept the terms below to continue with Google.
                 </p>
               </Show>
               <div class="my-6 flex items-center gap-4">
                 <span class="h-px flex-1 bg-dust-grey-600" />
-                <span class="text-xs text-dust-grey-300">or sign up with email</span>
+                <span class="text-xs text-dust-grey-text">or sign up with email</span>
                 <span class="h-px flex-1 bg-dust-grey-600" />
               </div>
             </div>
 
             <form class="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2" onSubmit={handleSubmit}>
               <Field
-                id="username"
-                label="Username"
-                autocomplete="username"
-                placeholder="How should we call you?"
-              />
-              <Field
-                id="dateOfBirth"
-                name="dateOfBirth"
-                label="Date of birth"
-                type="date"
-                autocomplete="bday"
-              />
-              <Field
                 id="email"
                 label="Email address"
                 type="email"
                 autocomplete="email"
                 placeholder="you@example.com"
-              />
-              <Field
-                id="phone"
-                label="Phone number"
-                type="tel"
-                autocomplete="tel"
-                placeholder="+1 555 000 0000"
-              />
-              <Field
-                id="city"
-                label="City"
-                autocomplete="address-level2"
-                placeholder="Your city"
-              />
-              <Field
-                id="address"
-                label="Street address"
-                autocomplete="street-address"
-                placeholder="Street and house number"
+                class="sm:col-span-2"
               />
 
               <div class="sm:col-span-2">
@@ -130,12 +131,12 @@ export default function SignupPage() {
                     aria-label={showPassword() ? "Hide password" : "Show password"}
                     aria-pressed={showPassword()}
                     onClick={() => setShowPassword(!showPassword())}
-                    class="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-dust-grey-300 transition hover:text-dust-grey-100"
+                    class="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-dust-grey-text transition hover:text-dust-grey-100"
                   >
                     {showPassword() ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                <p class="mt-2 text-xs text-dust-grey-300">Use at least 8 characters.</p>
+                <p class="mt-2 text-xs text-dust-grey-text">Use at least 8 characters.</p>
               </div>
 
               <label class="flex items-start gap-3 text-sm leading-6 text-dust-grey-200 sm:col-span-2">
@@ -153,7 +154,7 @@ export default function SignupPage() {
                     href="/terms-and-conditions"
                     target="_blank"
                     rel="noreferrer"
-                    class="font-semibold text-hunter-green-500 underline underline-offset-2 hover:text-fern-500"
+                    class="font-semibold text-hunter-green-500 underline underline-offset-2 hover:text-fern-text"
                   >
                     Terms &amp; Conditions
                   </A>
@@ -164,16 +165,22 @@ export default function SignupPage() {
               <div class="sm:col-span-2">
                 <button
                   type="submit"
+                  disabled={submitting()}
                   class="group flex h-13.5 w-full items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"
                 >
-                  Create account
+                  {submitting() ? "Creating account…" : "Create account"}
                   <ArrowRight size={17} class="transition-transform group-hover:translate-x-1" />
                 </button>
-                {message() && (
+                <Show when={errorMessage()}>
+                  <p role="alert" class="mt-3 rounded-lg border border-rose-400/40 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:bg-rose-950/30 dark:text-rose-200">
+                    {errorMessage()}
+                  </p>
+                </Show>
+                <Show when={message()}>
                   <p role="status" class="mt-3 rounded-lg bg-dry-sage-900 px-4 py-3 text-sm text-hunter-green-500">
                     {message()}
                   </p>
-                )}
+                </Show>
               </div>
             </form>
 
@@ -188,13 +195,13 @@ export default function SignupPage() {
 
         <aside class="relative hidden min-h-170 overflow-hidden bg-hunter-green-200 lg:block">
           <img
-            src="https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1800&q=85"
+            src="/card-1.jpg"
             alt="A warm, inviting room ready for a getaway"
             class="absolute inset-0 size-full object-cover"
-          />
+          width="740" height="493" />
           <div class="absolute inset-0 bg-linear-to-t from-pine-teal-100/85 via-pine-teal-100/10 to-pine-teal-100/10 dark:from-pine-teal-900/85 dark:via-pine-teal-900/10 dark:to-pine-teal-900/10" />
           <div class="absolute right-8 top-8 rounded-2xl border border-white/25 bg-pine-teal-100/45 p-3 backdrop-blur-md">
-            <img src="/logo_pack/logo-horizontal-on-dark.svg" alt="Bakimono" class="h-8 w-auto" />
+            <img src="/logo_pack/logo-horizontal-on-dark.svg" alt="Bakimono" class="h-8 w-auto" width="240" height="64" />
           </div>
 
           <div class="absolute left-10 top-10 flex items-center gap-2 rounded-full border border-white/30 bg-pine-teal-100/20 px-4 py-2.5 text-sm text-white backdrop-blur-md">

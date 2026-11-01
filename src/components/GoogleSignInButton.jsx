@@ -13,7 +13,7 @@ export default function GoogleSignInButton(props) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: props.redirectTo ?? `${window.location.origin}/dashboard`,
         },
       });
 
@@ -32,7 +32,7 @@ export default function GoogleSignInButton(props) {
         type="button"
         onClick={handleClick}
         disabled={props.disabled || isLoading()}
-        class="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-dust-grey-600 bg-white px-5 text-sm font-semibold text-dust-grey-100 transition hover:bg-dust-grey-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500 disabled:cursor-not-allowed disabled:opacity-60"
+        class="flex h-13 w-full items-center justify-center gap-3 rounded-xl border border-dust-grey-600 bg-white px-5 text-sm font-semibold text-dust-grey-100 transition hover:bg-dust-grey-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <svg aria-hidden="true" viewBox="0 0 48 48" class="size-[18px]">
           <path fill="#4285F4" d="M43.611 20.083H42V20H24v8h11.303C33.653 32.66 29.223 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />

@@ -2,8 +2,8 @@ import { A } from "@solidjs/router";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { CalendarDays, Check, Copy, Package, Search, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
-import { getProductImageUrl } from "~/utils/product-images";
 import { supabase } from "~/utils/supabase";
+import { getProductCoverUrl } from "~/utils/product-images";
 
 function formatDate(value) {
   const date = new Date(value);
@@ -15,18 +15,33 @@ function formatDate(value) {
       }).format(date);
 }
 
+function formatArrivalTime(value) {
+  const [hours, minutes] = String(value).split(":");
+  if (!hours || !minutes) return String(value);
+  const date = new Date();
+  date.setHours(Number(hours), Number(minutes), 0, 0);
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function formatPrice(price) {
+  const amount = Number(price);
+  return Number.isFinite(amount)
+    ? `KSh ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Math.round(amount))}`
+    : "KSh 0";
+}
+
 function statusTone(status) {
   const value = status.toLowerCase();
-  if (["confirmed", "complete", "completed", "fulfilled", "delivered"].includes(value)) {
+  if (["success", "confirmed", "complete", "completed", "fulfilled", "delivered"].includes(value)) {
     return "bg-fern-900 text-fern-300";
   }
   if (["cancelled", "canceled", "rejected", "failed"].includes(value)) {
-    return "bg-rose-100 text-rose-700";
+    return "bg-dust-grey-800 text-dust-grey-100";
   }
   if (["pending", "processing", "in progress"].includes(value)) {
     return "bg-dry-sage-900 text-dry-sage-200";
   }
-  return "bg-dust-grey-700 text-dust-grey-200";
+  return "bg-pine-teal-900 text-pine-teal-300";
 }
 
 export default function BookingsPage() {
@@ -60,12 +75,12 @@ export default function BookingsPage() {
       const [bookingsResult, ordersResult] = await Promise.all([
         supabase
           .from("bookings")
-          .select("entry_id, created_at, updated_at, status, client_id, product_id, period")
+          .select("entry_id, created_at, updated_at, status, client_id, product_id, period, quantity, arrival_time")
           .eq("client_id", currentUser.id)
           .order("created_at", { ascending: false }),
         supabase
           .from("orders")
-          .select("entry_id, created_at, updated_at, status, client_id, product_id, period")
+          .select("entry_id, created_at, updated_at, status, client_id, product_id, period, quantity, arrival_time")
           .eq("client_id", currentUser.id)
           .order("created_at", { ascending: false }),
       ]);
@@ -82,15 +97,18 @@ export default function BookingsPage() {
       if (productIds.length) {
         const { data: products, error: productsError } = await supabase
           .from("products")
-          .select("product_id, name, description, price, type, cover_image, images, capacity")
+          .select("product_id, provider_id, name, description, price, type, capacity")
           .in("product_id", productIds);
 
         if (productsError) throw productsError;
 
         const productsById = new Map((products ?? []).map((product) => [product.product_id, product]));
-        joinedRecords.forEach((record) => {
-          record.product = productsById.get(record.product_id) ?? null;
-        });
+        await Promise.all(joinedRecords.map(async (record) => {
+          const product = productsById.get(record.product_id) ?? null;
+          record.product = product
+            ? { ...product, coverUrl: await getProductCoverUrl(product.provider_id, product.product_id) }
+            : null;
+        }));
       }
 
       joinedRecords.sort(
@@ -165,7 +183,7 @@ export default function BookingsPage() {
 
   return (
     <main class="min-h-screen bg-dust-grey-800 px-4 pb-10 pt-7 sm:px-7 sm:pt-9 lg:px-10 lg:pt-10">
-      <div class="mx-auto max-w-[1120px]">
+      <div class="mx-auto max-w-280">
         <BrandBanner
           eyebrow="Your Bakimono plans"
           title="Bookings & orders."
@@ -175,7 +193,7 @@ export default function BookingsPage() {
         <Show when={user()}>
           <section
             aria-label="Filter bookings and orders"
-            class="grid gap-3 rounded-[24px] border border-dry-sage-700 bg-dry-sage-900 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center sm:p-5"
+            class="grid gap-3 rounded-3xl border border-dry-sage-700 bg-dry-sage-900 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center sm:p-5"
           >
             <label class="flex h-11 items-center gap-3 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3">
               <Search size={17} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
@@ -185,7 +203,7 @@ export default function BookingsPage() {
                 value={query()}
                 onInput={(event) => setQuery(event.currentTarget.value)}
                 placeholder="Search product or reference"
-                class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-300"
+                class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text"
               />
             </label>
             <label class="flex h-11 items-center gap-2 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-200">
@@ -238,7 +256,7 @@ export default function BookingsPage() {
         </Show>
 
         <Show when={isLoading()}>
-          <div role="status" class="mt-6 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 px-5 py-12 text-center text-sm text-dust-grey-300">
+          <div role="status" class="mt-6 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 px-5 py-12 text-center text-sm text-dust-grey-text">
             Loading your bookings and orders…
           </div>
         </Show>
@@ -246,7 +264,7 @@ export default function BookingsPage() {
         <Show when={!isLoading() && !user() && !errorMessage()}>
           <div class="mt-6 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 px-5 py-12 text-center">
             <h2 class="font-serif text-xl text-dust-grey-100">Sign in to see your plans</h2>
-            <p class="mt-2 text-sm text-dust-grey-300">
+            <p class="mt-2 text-sm text-dust-grey-text">
               Your bookings and orders are linked to your Bakimono account.
             </p>
             <A
@@ -261,7 +279,7 @@ export default function BookingsPage() {
         <Show when={!isLoading() && errorMessage()}>
           <div role="alert" class="mt-6 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 px-5 py-10 text-center">
             <h2 class="font-serif text-xl text-dust-grey-100">We couldn’t load your plans</h2>
-            <p class="mt-2 text-sm text-dust-grey-300">{errorMessage()}</p>
+            <p class="mt-2 text-sm text-dust-grey-text">{errorMessage()}</p>
             <button
               type="button"
               onClick={loadRecords}
@@ -275,7 +293,7 @@ export default function BookingsPage() {
         <Show when={!isLoading() && user() && !errorMessage()}>
           <div class="mt-7 flex items-end justify-between gap-4">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fern-500">
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fern-text">
                 Your activity
               </p>
               <h2 class="mt-1 font-serif text-2xl tracking-[-0.035em] text-dust-grey-100">
@@ -283,7 +301,7 @@ export default function BookingsPage() {
               </h2>
             </div>
             <Show when={records().length > 0}>
-              <p class="text-xs text-dust-grey-300">
+              <p class="text-xs text-dust-grey-text">
                 {records().length} total {records().length === 1 ? "record" : "records"}
               </p>
             </Show>
@@ -310,35 +328,26 @@ export default function BookingsPage() {
                         setSelectedRecord(record);
                       }
                     }}
-                    class="grid cursor-pointer overflow-hidden rounded-[24px] border border-dust-grey-600 bg-dust-grey-900 text-left shadow-sm transition hover:border-dry-sage-500 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500 sm:grid-cols-[180px_minmax(0,1fr)]"
+                    class="grid cursor-pointer overflow-hidden rounded-3xl border border-dust-grey-600 bg-dust-grey-900 text-left shadow-sm transition hover:border-dry-sage-500 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500 sm:grid-cols-[180px_minmax(0,1fr)]"
                   >
-                    <div class="relative min-h-40 bg-dry-sage-900 sm:min-h-[180px]">
-                      <Show
-                        when={record.product && getProductImageUrl(record.product)}
-                        fallback={
-                          <div class="flex size-full min-h-40 items-center justify-center bg-gradient-to-br from-dry-sage-800 via-dry-sage-700 to-pine-teal-700">
-                            {record.recordType === "booking" ? (
-                              <CalendarDays size={32} strokeWidth={1.4} class="text-dry-sage-300" aria-hidden="true" />
-                            ) : (
-                              <Package size={32} strokeWidth={1.4} class="text-dry-sage-300" aria-hidden="true" />
-                            )}
-                          </div>
-                        }
-                      >
-                        {(image) => (
-                          <img
-                            src={image()}
-                            alt={record.product?.name ?? ""}
-                            class="absolute inset-0 size-full object-cover"
-                          />
-                        )}
+                    <div class="relative min-h-40 bg-dry-sage-900 sm:min-h-45">
+                      <Show when={record.product?.coverUrl} fallback={
+                        <div class="flex size-full min-h-40 items-center justify-center bg-linear-to-br from-dry-sage-800 via-dry-sage-700 to-pine-teal-700">
+                          {record.recordType === "booking" ? (
+                            <CalendarDays size={32} strokeWidth={1.4} class="text-dry-sage-300" aria-hidden="true" />
+                          ) : (
+                            <Package size={32} strokeWidth={1.4} class="text-dry-sage-300" aria-hidden="true" />
+                          )}
+                        </div>
+                      }>
+                        <img src={record.product.coverUrl} alt={record.product.name || ""} class="absolute inset-0 size-full object-cover" loading="lazy" width="800" height="600" />
                       </Show>
                     </div>
                     <div class="flex flex-col justify-between gap-5 p-4 sm:p-5">
                       <div>
                         <div class="flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-fern-500">
+                            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-fern-text">
                               {record.recordType}
                             </p>
                             <h3 class="mt-1 font-serif text-xl text-dust-grey-100">
@@ -350,14 +359,14 @@ export default function BookingsPage() {
                           </span>
                         </div>
                         <Show when={record.product?.type || record.product?.capacity}>
-                          <p class="mt-1 text-sm text-dust-grey-300">
+                          <p class="mt-1 text-sm text-dust-grey-text">
                             {[record.product?.type, record.product?.capacity].filter(Boolean).join(" · ")}
                           </p>
                         </Show>
                       </div>
                       <div class="flex flex-wrap items-end justify-between gap-3 border-t border-dust-grey-700 pt-3">
                         <div>
-                          <p class="text-xs text-dust-grey-300">
+                          <p class="text-xs text-dust-grey-text">
                             Created {formatDate(record.created_at)}
                           </p>
                           <p class="mt-1 text-[11px] text-dust-grey-400">
@@ -366,10 +375,7 @@ export default function BookingsPage() {
                         </div>
                         <Show when={record.product?.price != null}>
                           <p class="font-semibold text-hunter-green-500">
-                            {new Intl.NumberFormat(undefined, {
-                              style: "currency",
-                              currency: "USD",
-                            }).format(Number(record.product.price))}
+                            {formatPrice(record.product.price)}
                           </p>
                         </Show>
                       </div>
@@ -383,7 +389,7 @@ export default function BookingsPage() {
           <Show when={selectedRecord()}>
             {(record) => (
               <div
-                class="product-drawer-backdrop fixed inset-0 z-[60] bg-pine-teal-100/55 backdrop-blur-sm"
+                class="animate-product-drawer-backdrop-in motion-reduce:animate-none fixed inset-0 z-60 bg-pine-teal-100/55 backdrop-blur-sm"
                 role="presentation"
                 onClick={(event) => {
                   if (event.target === event.currentTarget) setSelectedRecord(null);
@@ -393,28 +399,19 @@ export default function BookingsPage() {
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="booking-detail-title"
-                  class="product-drawer-panel absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-dust-grey-600 bg-dust-grey-900 shadow-2xl"
+                  class="animate-product-drawer-in motion-reduce:animate-none absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-dust-grey-600 bg-dust-grey-900 shadow-2xl"
                 >
                   <div class="relative aspect-[1.55] max-h-[42vh] shrink-0 overflow-hidden bg-dry-sage-900">
-                    <Show
-                      when={record().product && getProductImageUrl(record().product)}
-                      fallback={
-                        <div class="flex size-full items-center justify-center bg-gradient-to-br from-dry-sage-800 via-dry-sage-700 to-pine-teal-700">
-                          {record().recordType === "booking" ? (
-                            <CalendarDays size={42} strokeWidth={1.4} class="text-dry-sage-300" aria-hidden="true" />
-                          ) : (
-                            <Package size={42} strokeWidth={1.4} class="text-dry-sage-300" aria-hidden="true" />
-                          )}
-                        </div>
-                      }
-                    >
-                      {(image) => (
-                        <img
-                          src={image()}
-                          alt={record().product?.name ?? ""}
-                          class="size-full object-cover"
-                        />
-                      )}
+                    <Show when={record().product?.coverUrl} fallback={
+                      <div class="flex size-full items-center justify-center bg-linear-to-br from-dry-sage-800 via-dry-sage-700 to-pine-teal-700">
+                        {record().recordType === "booking" ? (
+                          <CalendarDays size={42} strokeWidth={1.4} class="text-dry-sage-300" aria-hidden="true" />
+                        ) : (
+                          <Package size={42} strokeWidth={1.4} class="text-dry-sage-300" aria-hidden="true" />
+                        )}
+                      </div>
+                    }>
+                      <img src={record().product.coverUrl} alt={record().product.name || ""} class="size-full object-cover" width="800" height="600" />
                     </Show>
                     <button
                       type="button"
@@ -429,14 +426,14 @@ export default function BookingsPage() {
                   <div class="p-5 sm:p-8">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-500">
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">
                           {record().recordType}
                         </p>
                         <h2 id="booking-detail-title" class="mt-2 font-serif text-2xl tracking-[-0.035em] text-dust-grey-100 sm:text-3xl">
                           {record().product?.name || "Product details unavailable"}
                         </h2>
                         <Show when={record().product?.type || record().product?.capacity}>
-                          <p class="mt-2 text-sm capitalize text-dust-grey-300">
+                          <p class="mt-2 text-sm capitalize text-dust-grey-text">
                             {[record().product?.type, record().product?.capacity].filter(Boolean).join(" · ")}
                           </p>
                         </Show>
@@ -454,7 +451,7 @@ export default function BookingsPage() {
 
                     <dl class="mt-6 divide-y divide-dust-grey-700 rounded-2xl border border-dust-grey-600 px-4">
                       <div class="flex items-start justify-between gap-4 py-3">
-                        <dt class="text-sm text-dust-grey-300">Reference</dt>
+                        <dt class="text-sm text-dust-grey-text">Reference</dt>
                         <dd class="flex max-w-[75%] items-start gap-2 text-right text-sm font-medium text-dust-grey-100">
                           <span class="break-all">{record().entry_id}</span>
                           <button
@@ -484,31 +481,40 @@ export default function BookingsPage() {
                         </p>
                       </Show>
                       <div class="flex items-start justify-between gap-4 py-3">
-                        <dt class="text-sm text-dust-grey-300">Created</dt>
+                        <dt class="text-sm text-dust-grey-text">Created</dt>
                         <dd class="text-right text-sm font-medium text-dust-grey-100">
                           {formatDate(record().created_at)}
                         </dd>
                       </div>
                       <div class="flex items-start justify-between gap-4 py-3">
-                        <dt class="text-sm text-dust-grey-300">Last updated</dt>
+                        <dt class="text-sm text-dust-grey-text">Last updated</dt>
                         <dd class="text-right text-sm font-medium text-dust-grey-100">
                           {formatDate(record().updated_at)}
                         </dd>
                       </div>
                       <div class="flex items-start justify-between gap-4 py-3">
-                        <dt class="text-sm text-dust-grey-300">Duration</dt>
+                        <dt class="text-sm text-dust-grey-text">Duration</dt>
                         <dd class="text-right text-sm font-medium text-dust-grey-100">
-                          {record().period} {Number(record().period) === 1 ? "hour" : "hours"}
+                          {record().period ? `${record().period} ${Number(record().period) === 1 ? "hour" : "hours"}` : "—"}
+                        </dd>
+                      </div>
+                      <div class="flex items-start justify-between gap-4 py-3">
+                        <dt class="text-sm text-dust-grey-text">Arrival time</dt>
+                        <dd class="text-right text-sm font-medium text-dust-grey-100">
+                          {record().arrival_time ? formatArrivalTime(record().arrival_time) : "—"}
+                        </dd>
+                      </div>
+                      <div class="flex items-start justify-between gap-4 py-3">
+                        <dt class="text-sm text-dust-grey-text">Quantity</dt>
+                        <dd class="text-right text-sm font-medium text-dust-grey-100">
+                          {record().quantity ?? "—"}
                         </dd>
                       </div>
                       <Show when={record().product?.price != null}>
                         <div class="flex items-start justify-between gap-4 py-3">
-                          <dt class="text-sm text-dust-grey-300">Product price</dt>
+                          <dt class="text-sm text-dust-grey-text">Product price</dt>
                           <dd class="text-right text-sm font-semibold text-hunter-green-500">
-                            {new Intl.NumberFormat(undefined, {
-                              style: "currency",
-                              currency: "USD",
-                            }).format(Number(record().product.price))}
+                            {formatPrice(record().product.price)}
                           </dd>
                         </div>
                       </Show>
@@ -521,11 +527,11 @@ export default function BookingsPage() {
 
           <Show when={filteredRecords().length === 0}>
             <div class="mt-4 rounded-2xl border border-dust-grey-600 bg-dust-grey-900 px-5 py-12 text-center">
-              <CalendarDays size={26} class="mx-auto text-dust-grey-300" aria-hidden="true" />
+              <CalendarDays size={26} class="mx-auto text-dust-grey-text" aria-hidden="true" />
               <h3 class="mt-3 font-serif text-xl text-dust-grey-100">
                 {records().length ? "No matching plans" : "Nothing booked just yet"}
               </h3>
-              <p class="mt-1 text-sm text-dust-grey-300">
+              <p class="mt-1 text-sm text-dust-grey-text">
                 {records().length
                   ? "Try changing your filters or search."
                   : "When you make a booking or place an order, it will show up here."}
