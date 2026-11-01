@@ -99,13 +99,14 @@ const imageUrl = (photo) =>
 export default function HomePage() {
   return (
     <main class="bg-dust-grey-900 text-dust-grey-100">
-      <section class="mx-auto grid min-h-[620px] max-w-360 items-center gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:px-12 lg:py-16">
+      <h1 class="sr-only">Home page Bakimono</h1>
+      <section class="mx-auto grid min-h-155 max-w-360 items-center gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:px-12 lg:py-16">
         <div class="max-w-xl">
           <div class="mb-7 inline-flex items-center gap-2 rounded-full border border-dry-sage-800 bg-dry-sage-900 px-3 py-1.5 text-xs font-semibold tracking-[0.12em] text-hunter-green-500">
             <Sparkles size={14} aria-hidden="true" />
             LITTLE PLANS, LOVELY PLACES
           </div>
-          <h1 class="font-serif text-5xl leading-[1.04] tracking-[-0.05em] sm:text-6xl lg:text-[68px]">
+          <h1 class="font-serif text-5xl leading-[1.04] tracking-tighter sm:text-6xl lg:text-[68px]">
             Make room for <span class="text-hunter-green-500">good moments.</span>
           </h1>
           <p class="mt-6 max-w-lg text-base leading-7 text-dust-grey-200 sm:text-lg">
@@ -131,7 +132,7 @@ export default function HomePage() {
           </A>
         </div>
 
-        <div class="relative min-h-[340px] overflow-hidden rounded-[32px] bg-dry-sage-800 sm:min-h-[460px]">
+        <div class="relative min-h-85 overflow-hidden rounded-4xl bg-dry-sage-800 sm:min-h-115">
           <img
             src={imageUrl("photo-1517248135467-4c7edcad34c4")}
             alt="A warmly lit restaurant ready to welcome guests"

@@ -65,13 +65,13 @@ const imageUrl = (photo) =>
 export default function ProviderPage() {
   return (
     <main class="min-h-screen bg-dust-grey-900 text-dust-grey-100">
-      <section class="mx-auto grid min-h-[560px] max-w-360 items-center gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-16">
+      <section class="mx-auto grid min-h-140 max-w-360 items-center gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-16">
         <div class="max-w-xl">
           <div class="mb-7 inline-flex items-center gap-2 rounded-full border border-dry-sage-800 bg-dry-sage-900 px-3 py-1.5 text-xs font-semibold tracking-[0.12em] text-hunter-green-500">
             <Store size={14} aria-hidden="true" />
             THE PROVIDER SPACE
           </div>
-          <h1 class="font-serif text-5xl leading-[1.04] tracking-[-0.05em] sm:text-6xl lg:text-[66px]">
+          <h1 class="font-serif text-5xl leading-[1.04] tracking-tighter sm:text-6xl lg:text-[66px]">
             Great places deserve <span class="text-hunter-green-500">great tools.</span>
           </h1>
           <p class="mt-6 max-w-lg text-base leading-7 text-dust-grey-200 sm:text-lg">
@@ -97,7 +97,7 @@ export default function ProviderPage() {
           </a>
         </div>
 
-        <div class="relative min-h-[340px] overflow-hidden rounded-[32px] bg-dry-sage-800 sm:min-h-[460px]">
+        <div class="relative min-h-85 overflow-hidden rounded-4xl bg-dry-sage-800 sm:min-h-115">
           <img
             src={imageUrl("photo-1556761175-b413da4baf72")}
             alt="A small business team planning their next steps"
@@ -136,7 +136,7 @@ export default function ProviderPage() {
           class={index % 2 === 0 ? "border-b border-dust-grey-700 bg-dust-grey-900" : "border-b border-dust-grey-700 bg-dust-grey-800"}
         >
           <div class="mx-auto grid max-w-360 items-center gap-8 px-5 py-12 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:px-12 lg:py-16">
-            <div class={index % 2 === 1 ? "relative min-h-[260px] overflow-hidden rounded-7 bg-dry-sage-800 lg:order-2 lg:min-h-[360px]" : "relative min-h-[260px] overflow-hidden rounded-7 bg-dry-sage-800 lg:min-h-[360px]"}>
+            <div class={index % 2 === 1 ? "relative min-h-65 overflow-hidden rounded-7 bg-dry-sage-800 lg:order-2 lg:min-h-90" : "relative min-h-65 overflow-hidden rounded-7 bg-dry-sage-800 lg:min-h-90"}>
               <img src={imageUrl(image)} alt={imageAlt} loading="lazy" class="absolute inset-0 size-full object-cover" width="800" height="600" />
               <div class="absolute inset-0 bg-linear-to-t from-pine-teal-100/45 to-transparent" />
               <span class="absolute bottom-4 left-4 flex size-12 items-center justify-center rounded-2xl border border-white/40 bg-white/90 text-hunter-green-500 backdrop-blur-sm">

@@ -71,6 +71,7 @@ export default function SignupPage() {
 
   return (
     <main class="min-h-[calc(100vh-76px)] bg-dust-grey-900">
+      <h1 class="sr-only">Bakimono sign up</h1>
       <div class="mx-auto grid min-h-[calc(100vh-76px)] max-w-360 lg:grid-cols-[1.08fr_0.92fr]">
         <section class="flex items-center justify-center px-5 py-10 sm:px-10 lg:px-14 xl:px-20">
           <div class="w-full max-w-140">

@@ -42,9 +42,10 @@ export default function LoginPage() {
 
   return (
     <main class="min-h-[calc(100vh-76px)] bg-dust-grey-900">
+      <h1 class="sr-only">Bakimono login</h1>
       <div class="mx-auto grid min-h-[calc(100vh-76px)] max-w-360 lg:grid-cols-[0.92fr_1.08fr]">
         <section class="flex items-center justify-center px-5 py-12 sm:px-10 lg:px-16 xl:px-24">
-          <div class="w-full max-w-[430px]">
+          <div class="w-full max-w-107.5">
             <div class="mb-8 inline-flex items-center gap-2 rounded-full border border-dry-sage-800 bg-dry-sage-900 px-3 py-1.5 text-xs font-semibold tracking-[0.12em] text-hunter-green-500">
               <Sparkles size={13} aria-hidden="true" />
               THE GOOD LIFE, ALL IN ONE PLACE
@@ -54,7 +55,7 @@ export default function LoginPage() {
               Welcome back
               <span class="mt-1 block text-hunter-green-500">to bakimono.</span>
             </h1>
-            <p class="mt-4 max-w-[360px] text-[15px] leading-7 text-dust-grey-200">
+            <p class="mt-4 max-w-90 text-[15px] leading-7 text-dust-grey-200">
               Your next stay, favorite table, or can’t-wait-to-eat meal is just
               around the corner.
             </p>
@@ -173,13 +174,13 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <aside class="relative hidden min-h-[680px] overflow-hidden bg-hunter-green-200 lg:block">
+        <aside class="relative hidden min-h-170 overflow-hidden bg-hunter-green-200 lg:block">
           <img
             src="/card-1.jpg"
             alt="Warm, inviting hotel room with a view"
             class="absolute inset-0 size-full object-cover"
           width="740" height="493" />
-          <div class="absolute inset-0 bg-linear-to-t from-pine-teal-100/85 via-pine-teal-100/10 to-pine-teal-100/10 dark:from-[#0a0f0d]/85 dark:via-[#0a0f0d]/10 dark:to-[#0a0f0d]/10" />
+          <div class="absolute inset-0 bg-linear-to-t from-pine-teal-100/85 via-pine-teal-100/10 to-pine-teal-100/10 dark:from-pine-teal-100/85 dark:via-pine-teal-100/10 dark:to-pine-teal-100/10" />
           <div class="absolute right-8 top-8 rounded-2xl border border-white/25 bg-pine-teal-100/45 p-3 backdrop-blur-md">
             <img src="/logo_pack/logo-horizontal-on-dark.svg" alt="Bakimono" class="h-8 w-auto" width="240" height="64" />
           </div>
@@ -202,10 +203,10 @@ export default function LoginPage() {
               <Sparkles size={13} aria-hidden="true" />
               Stay a little different
             </div>
-            <h2 class="max-w-[560px] font-serif text-4xl leading-[1.12] tracking-[-0.04em] text-white xl:text-[54px]">
+            <h2 class="max-w-140 font-serif text-4xl leading-[1.12] tracking-[-0.04em] text-white xl:text-[54px]">
               Make room for <span class="text-dry-sage-500">wonder.</span>
             </h2>
-            <p class="mt-4 max-w-[430px] text-[15px] leading-7 text-white/80">
+            <p class="mt-4 max-w-107.5 text-[15px] leading-7 text-white/80">
               Find the tucked-away stay, book the table worth lingering at, and
               have something delicious find its way to you.
             </p>

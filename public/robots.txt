@@ -1,2 +1,3 @@
 User-agent: *
 Allow: /
+Sitemap: https://bakimono.rugalproductions.co.ke/sitemap.xml

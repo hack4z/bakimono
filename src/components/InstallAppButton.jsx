@@ -29,14 +29,17 @@ export default function InstallAppButton() {
 
   async function installApp() {
     const prompt = installPrompt();
-    if (!prompt) return;
+    if (!prompt) {
+      window.alert("Use your browser menu and choose Install app or Add to Home Screen.");
+      return;
+    }
     await prompt.prompt();
     await prompt.userChoice;
     setInstallPrompt(null);
   }
 
   return (
-    <Show when={installPrompt() && !isStandalone()}>
+    <Show when={!isStandalone()}>
       <button
         type="button"
         onClick={installApp}

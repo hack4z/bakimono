@@ -311,6 +311,7 @@ export default function ProviderSignupPage(props) {
 
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
+      <h1 class="sr-only">Bakimono provider sign up</h1>
       <div class="mx-auto max-w-4xl">
         <A
           href="/provider"

@@ -23,7 +23,6 @@ import {
   X,
 } from "lucide-solid";
 import { createSignal, For, onMount, Show } from "solid-js";
-import ThemeToggle from "~/components/ThemeToggle";
 import { supabase } from "~/utils/supabase-client";
 
 const providerLinks = [
@@ -427,9 +426,6 @@ export default function ProviderNavigation() {
 
         </section>
 
-        <div class="hidden lg:block lg:mt-auto lg:mx-auto">
-          <ThemeToggle />
-        </div>
       </div>
     </nav>
   );

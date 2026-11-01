@@ -3,9 +3,9 @@ import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import solid from "vite-plugin-solid";
 import { VitePWA } from 'vite-plugin-pwa';
-
 export default defineConfig({
-  plugins: [solid(), tailwindcss(), VitePWA({
+  plugins: [solid(), tailwindcss(), 
+    VitePWA({
       registerType: 'autoUpdate',
       injectRegister: "script-defer",
       includeAssets: ['apple-touch-icon-180x180.png'],

@@ -18,6 +18,7 @@ const HomePage = lazy(() => import("~/components/HomePage"));
 const HelpPage = lazy(() => import("~/components/HelpPage"));
 const LoginPage = lazy(() => import("~/components/LoginPage"));
 const PasswordRecoveryPage = lazy(() => import("~/components/PasswordRecoveryPage"));
+const NotFoundPage = lazy(() => import("~/components/NotFoundPage"));
 const ProviderPage = lazy(() => import("~/components/ProviderPage"));
 const ProviderAccountSignupPage = lazy(() => import("~/components/ProviderAccountSignupPage"));
 const ProviderLoginPage = lazy(() => import("~/components/ProviderLoginPage"));
@@ -140,7 +141,7 @@ export default function App() {
       <Route path="/cookie-policy" component={SettingsInfoPage} />
       <Route path="/help" component={HelpPage} />
       <Route path="/checkout/:productId" component={CheckoutPage} />
-      <Route path="*" component={NotFound} />
+      <Route path="*" component={NotFoundPage} />
     </Router>
   );
 }
@@ -267,13 +268,13 @@ function ProviderAccessGuard(props) {
           aria-live="polite"
         >
           <div class="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
-            <div class="absolute -top-40 left-1/2 size-[36rem] -translate-x-1/2 rounded-full bg-fern-500/10 blur-3xl" />
-            <div class="absolute -bottom-48 -left-32 size-[32rem] rounded-full bg-pine-teal-500/10 blur-3xl" />
-            <div class="absolute -right-36 top-1/3 size-[30rem] rounded-full bg-hunter-green-500/10 blur-3xl" />
-            <div class="absolute inset-0 bg-[radial-gradient(var(--color-dust-grey-600)_0.7px,transparent_0.7px)] [background-size:28px_28px] opacity-30" />
+            <div class="absolute -top-40 left-1/2 size-144 -translate-x-1/2 rounded-full bg-fern-500/10 blur-3xl" />
+            <div class="absolute -bottom-48 -left-32 size-128 rounded-full bg-pine-teal-500/10 blur-3xl" />
+            <div class="absolute -right-36 top-1/3 size-120 rounded-full bg-hunter-green-500/10 blur-3xl" />
+            <div class="absolute inset-0 bg-[radial-gradient(var(--color-dust-grey-600)_0.7px,transparent_0.7px)] bg-size:[28px_28px] opacity-30" />
           </div>
 
-          <section class="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-dust-grey-600 bg-dust-grey-900/90 shadow-2xl shadow-hunter-green-500/10 backdrop-blur-xl">
+          <section class="w-full max-w-2xl overflow-hidden rounded-4xl border border-dust-grey-600 bg-dust-grey-900/90 shadow-2xl shadow-hunter-green-500/10 backdrop-blur-xl">
             <div class="flex items-center justify-between border-b border-dust-grey-600/70 px-6 py-5 sm:px-9">
               <img src="/logo_pack/logo-horizontal-multicolor.svg" alt="Bakimono" class="h-8 w-auto" width="240" height="64" />
               <span class="inline-flex items-center gap-2 rounded-full border border-fern-500/20 bg-fern-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-fern-text">
@@ -288,7 +289,7 @@ function ProviderAccessGuard(props) {
                 <span class="absolute inset-3 animate-[spin_12s_linear_infinite] rounded-full border border-dashed border-fern-500/35 motion-reduce:animate-none" />
                 <span class="absolute inset-5 animate-[spin_8s_linear_infinite_reverse] rounded-full border-2 border-transparent border-t-fern-500 border-r-pine-teal-500 motion-reduce:animate-none" />
                 <span class="absolute inset-9 animate-ping rounded-full bg-fern-500/10 motion-reduce:animate-none" />
-                <span class="relative flex size-20 items-center justify-center rounded-[1.75rem] border border-dust-grey-600 bg-dust-grey-800 shadow-lg shadow-hunter-green-500/10 sm:size-24 sm:rounded-[2rem]">
+                <span class="relative flex size-20 items-center justify-center rounded-[1.75rem] border border-dust-grey-600 bg-dust-grey-800 shadow-lg shadow-hunter-green-500/10 sm:size-24 sm:rounded-4xl">
                   <img src="/logo_pack/emblem-multicolor.svg" alt="" class="size-12 sm:size-14" width="64" height="64" />
                 </span>
               </div>
@@ -386,10 +387,10 @@ function AppShell(props) {
       <Show when={!usesPublicNavigation() && !isProviderSubPage()}>
         <AppNavigation />
       </Show>
-      <Show when={hasAppNavigation()}>
+      <Show when={hasAppNavigation() || hasProviderNavigation()}>
         <A
           href="/"
-          title="Bakimono home"
+          title={hasProviderNavigation() ? "Bakimono provider home" : "Bakimono home"}
           class="fixed left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex size-10 items-center justify-center rounded-full border border-dust-grey-600 bg-dust-grey-900 shadow-sm transition hover:border-fern-500 hover:bg-dry-sage-900 lg:left-5 lg:top-5"
         >
           <img src="/logo_pack/emblem.svg" alt="" class="size-7 dark:hidden" width="64" height="64" />
@@ -403,23 +404,11 @@ function AppShell(props) {
       <Show when={isProviderSubPage()}>
         <ProviderNavigation />
       </Show>
-      <div class={`${hasAppNavigation() ? "bg-dust-grey-800 pt-10 lg:pt-12" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "pb-20 lg:pb-0" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "lg:pl-18" : ""}`}>
+      <div class={`${hasAppNavigation() || hasProviderNavigation() ? "bg-dust-grey-800 pt-12 lg:pt-12" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "pb-20 lg:pb-0" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "lg:pl-18" : ""}`}>
         <Suspense>
           {props.children}
         </Suspense>
       </div>
     </div>
-  );
-}
-
-function NotFound() {
-  return (
-    <main class="mx-auto max-w-2xl px-6 py-24 text-center text-dust-grey-100">
-      <h1 class="font-serif text-4xl font-semibold">Page not found</h1>
-      <p class="mt-4 text-dust-grey-200">The page you requested doesn’t exist.</p>
-      <A href="/" class="mt-6 inline-block font-semibold text-hunter-green-500 hover:underline">
-        Back to home
-      </A>
-    </main>
   );
 }
