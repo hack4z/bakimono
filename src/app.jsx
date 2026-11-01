@@ -66,6 +66,14 @@ const guardedProviderPage = (component, options = {}) => () => (
   />
 );
 
+function withTimeout(promise, message = "This request took too long. Please try again.") {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), 8000);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
 const withMainNavigation = (Page) => function MainNavigationPage() {
   return (
     <>
@@ -157,11 +165,14 @@ function ProviderOnboardingPage() {
     verification: ProviderVerificationPage,
     payment: ProviderPaymentPage,
   };
-
   onMount(async () => {
     try {
       const progress = await getCurrentProviderOnboardingStep();
-      if (progress.nextStep) setStep(progress.nextStep);
+      if (progress.complete) {
+        window.location.replace("/provider/dashboard");
+        return;
+      }
+      setStep(progress.nextStep || "business");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to load provider onboarding.");
     } finally {
@@ -187,13 +198,17 @@ function ProviderOnboardingPage() {
 }
 
 function ProviderAccessGuard(props) {
+  const location = useLocation();
   const [state, setState] = createSignal("checking");
   const [providerName, setProviderName] = createSignal("");
   const [errorMessage, setErrorMessage] = createSignal("");
 
   onMount(async () => {
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const { data: authData, error: authError } = await withTimeout(
+        supabase.auth.getUser(),
+        "Checking your login took too long. Please refresh the page.",
+      );
       if (authError) {
         setState("unauthenticated");
         queueMicrotask(() => {
@@ -209,14 +224,29 @@ function ProviderAccessGuard(props) {
         return;
       }
 
-      const { data: membership, error: membershipError } = await supabase
+      const { data: memberships, error: membershipError } = await withTimeout(supabase
         .from("provider_members")
         .select("provider_id, status, role")
-        .eq("member_id", authData.user.id)
-        .maybeSingle();
+        .eq("member_id", authData.user.id), "Loading your provider membership took too long. Please refresh the page.");
       if (membershipError) throw membershipError;
+      const membership = (memberships ?? []).find((item) => item.status?.toLowerCase() !== "banned")
+        ?? memberships?.[0];
       if (!membership?.provider_id) {
         throw new Error("Your account is not linked to a provider workspace.");
+      }
+      const { data: providerRecord, error: providerStepError } = await withTimeout(supabase
+        .from("providers")
+        .select("step")
+        .eq("provider_id", membership.provider_id)
+        .maybeSingle(), "Loading your onboarding progress took too long. Please refresh the page.");
+      if (providerStepError) throw providerStepError;
+      const onboardingIncomplete = providerRecord?.step && providerRecord.step !== "complete";
+      if (
+        onboardingIncomplete
+        && !location.pathname.startsWith("/provider/onboarding")
+      ) {
+        window.location.replace("/provider/onboarding");
+        return;
       }
       const normalizedRole = membership?.role?.trim().toLowerCase();
       const allowedRoles = props.allowedRoles ?? [];
@@ -239,11 +269,11 @@ function ProviderAccessGuard(props) {
         throw new Error("Your banned membership does not identify a provider.");
       }
 
-      const { data: provider, error: providerError } = await supabase
+      const { data: provider, error: providerError } = await withTimeout(supabase
         .from("providers")
         .select("name")
         .eq("provider_id", membership.provider_id)
-        .maybeSingle();
+        .maybeSingle(), "Loading provider details took too long. Please refresh the page.");
       if (providerError) throw providerError;
       if (!provider?.name?.trim()) {
         throw new Error("The provider name for this banned membership could not be found.");
@@ -374,7 +404,9 @@ function AppShell(props) {
     || location.pathname === "/provider/partner-signup"
     || location.pathname === "/provider/member-signup";
   const isProviderSubPage = () =>
-    location.pathname.startsWith("/provider/") && !isProviderAuthPage();
+    location.pathname.startsWith("/provider/")
+    && !isProviderAuthPage()
+    && !location.pathname.startsWith("/provider/onboarding");
   const usesPublicNavigation = () =>
     ["/", "/login", "/signup", "/forgot-password", "/reset-password", "/provider"].includes(location.pathname)
     || isProviderAuthPage();

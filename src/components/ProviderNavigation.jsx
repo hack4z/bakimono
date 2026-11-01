@@ -108,12 +108,12 @@ export default function ProviderNavigation() {
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData.user) return;
-      const { data: membership, error } = await supabase
+      const { data: memberships, error } = await supabase
         .from("provider_members")
         .select("role")
-        .eq("member_id", authData.user.id)
-        .maybeSingle();
+        .eq("member_id", authData.user.id);
       if (error) return;
+      const membership = memberships?.[0];
       const role = membership?.role?.trim().toLowerCase();
       setCanManageMembers(["owner", "manager"].includes(role));
       setCanViewPartners(role === "owner");

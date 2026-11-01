@@ -1,6 +1,6 @@
 import { useSearchParams } from "@solidjs/router";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
-import { ArrowDownUp, Ban, Check, CreditCard, ListFilter, LoaderCircle, Pencil, Plus, RefreshCw, Search, Smartphone, UserRound, X } from "lucide-solid";
+import { ArrowDownUp, Ban, Check, CreditCard, ListFilter, LoaderCircle, Pencil, Plus, RefreshCw, Search, Smartphone, UserCheck, UserRound, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 import LoadingState from "~/components/LoadingState";
@@ -80,6 +80,7 @@ export default function ProviderDashboardPage() {
   const [errorMessage, setErrorMessage] = createSignal("");
   const [actionError, setActionError] = createSignal("");
   const [updatingRecordId, setUpdatingRecordId] = createSignal("");
+  const [completingRecordId, setCompletingRecordId] = createSignal("");
   const [recordDrawerOpen, setRecordDrawerOpen] = createSignal(false);
   const [editingRecord, setEditingRecord] = createSignal(null);
   const [recordForm, setRecordForm] = createSignal(emptyRecordForm());
@@ -278,7 +279,7 @@ export default function ProviderDashboardPage() {
           .update(values)
           .eq("entry_id", editingRecord().entry_id)
           .eq("product_id", editingRecord().product_id)
-          .select("entry_id, created_at, updated_at, status, client_id, product_id, period, quantity, arrival_time")
+          .select("entry_id, created_at, updated_at, status, is_complete, client_id, product_id, period, quantity, arrival_time")
           .maybeSingle();
         if (error) throw error;
         if (!data) throw new Error(`The ${current.type} could not be updated.`);
@@ -290,7 +291,7 @@ export default function ProviderDashboardPage() {
         const { data, error } = await supabase
           .from(table)
           .insert({ ...values, created_at: new Date(`${current.calendar_date}T12:00:00`).toISOString() })
-          .select("entry_id, created_at, updated_at, status, client_id, product_id, period, quantity, arrival_time")
+          .select("entry_id, created_at, updated_at, status, is_complete, client_id, product_id, period, quantity, arrival_time")
           .single();
         if (error) throw error;
         savedRecord = { ...data, type: current.type };
@@ -330,6 +331,36 @@ export default function ProviderDashboardPage() {
       setActionError(error instanceof Error ? error.message : `Unable to update ${record.type} status.`);
     } finally {
       setUpdatingRecordId("");
+    }
+
+    async function completeRecord(record) {
+      if (record.is_complete || completingRecordId()) return;
+      if (!window.confirm(`Mark this ${record.type} as complete?`)) return;
+      const recordKey = `${record.type}:${record.entry_id}`;
+      setCompletingRecordId(recordKey);
+      setActionError("");
+      try {
+        const table = record.type === "booking" ? "bookings" : "orders";
+        const { data, error } = await supabase
+          .from(table)
+          .update({ is_complete: true, updated_at: new Date().toISOString() })
+          .eq("entry_id", record.entry_id)
+          .eq("product_id", record.product_id)
+          .select("entry_id, is_complete")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error(`The ${record.type} could not be completed.`);
+
+        setRecords((current) => current.map((item) =>
+          item.type === record.type && item.entry_id === record.entry_id
+            ? { ...item, is_complete: data.is_complete }
+            : item,
+        ));
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : `Unable to complete ${record.type}.`);
+      } finally {
+        setCompletingRecordId("");
+      }
     }
   }
 
@@ -559,6 +590,18 @@ export default function ProviderDashboardPage() {
                             </button>
                             <button type="button" onClick={() => void cancelRecord(record)} disabled={record.status === "cancelled" || Boolean(updatingRecordId())} title="Cancel" class="inline-flex size-9 items-center justify-center rounded-lg border border-dust-grey-600 text-dust-grey-200 transition hover:bg-dust-grey-800 hover:text-dust-grey-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dust-grey-300 disabled:cursor-not-allowed disabled:opacity-50">
                               <Show when={updatingRecordId() === `${record.type}:${record.entry_id}`} fallback={<Ban size={16} aria-hidden="true" />}>
+                                <LoaderCircle size={16} class="animate-spin" aria-hidden="true" />
+                              </Show>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void completeRecord(record)}
+                              disabled={Boolean(record.is_complete) || Boolean(completingRecordId())}
+                              title={record.is_complete ? "Completed" : "Mark complete"}
+                              aria-label={record.is_complete ? "Completed" : "Mark complete"}
+                              class="inline-flex size-9 items-center justify-center rounded-lg border border-fern-700 bg-fern-900/30 text-fern-300 transition hover:bg-fern-900 hover:text-fern-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fern-500 disabled:cursor-not-allowed disabled:border-fern-500 disabled:bg-fern-800 disabled:text-fern-200 disabled:opacity-100"
+                            >
+                              <Show when={completingRecordId() === `${record.type}:${record.entry_id}`} fallback={<UserCheck size={16} aria-hidden="true" />}>
                                 <LoaderCircle size={16} class="animate-spin" aria-hidden="true" />
                               </Show>
                             </button>

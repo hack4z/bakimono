@@ -2,6 +2,8 @@ import { A } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, ShieldCheck, Smartphone } from "lucide-solid";
 import { supabase } from "~/utils/supabase-client";
+import { normalizeKenyanPhone } from "~/utils/supabase";
+import ProviderStepSavingOverlay from "~/components/ProviderStepSavingOverlay";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =
@@ -9,7 +11,7 @@ const inputClass =
 
 export default function ProviderPaymentPage(props) {
   const [tillNumber, setTillNumber] = createSignal("");
-  const [mpesaCodeType, setMpesaCodeType] = createSignal("till_number");
+  const [mpesaCodeType, setMpesaCodeType] = createSignal("paybill");
   const [ownerUsername, setOwnerUsername] = createSignal("");
   const [ownerPhone, setOwnerPhone] = createSignal("");
   const [draftAvailable, setDraftAvailable] = createSignal(false);
@@ -30,9 +32,7 @@ export default function ProviderPaymentPage(props) {
       if (draft.payment_method === "mpesa" && typeof draft.till_number === "string") {
         setTillNumber(draft.till_number);
       }
-      if (["phone_number", "till_number", "paybill"].includes(draft.mpesa_code_type)) {
-        setMpesaCodeType(draft.mpesa_code_type);
-      }
+      setMpesaCodeType(draft.mpesa_code_type === "paybill" ? "paybill" : "paybill");
       const verification = draft.verification ?? {};
       setOwnerUsername(
         draft.provider_member?.name
@@ -42,7 +42,8 @@ export default function ProviderPaymentPage(props) {
             : verification.representative_name)
           ?? "",
       );
-      setOwnerPhone(draft.provider_member?.phone ?? "");
+      const savedPhone = normalizeKenyanPhone(draft.provider_member?.phone ?? "");
+      setOwnerPhone(savedPhone.startsWith("254") ? savedPhone.slice(3) : "");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -57,7 +58,7 @@ export default function ProviderPaymentPage(props) {
     setErrorMessage("");
     const till = tillNumber().trim();
     if (!skip && !/^\d+$/.test(till)) {
-      setErrorMessage(`Enter your M-PESA ${mpesaCodeType() === "phone_number" ? "phone number" : mpesaCodeType() === "paybill" ? "Paybill number" : "Till number"} using digits only.`);
+      setErrorMessage("Enter your M-PESA Paybill number using digits only.");
       return;
     }
     const username = ownerUsername().trim();
@@ -65,9 +66,9 @@ export default function ProviderPaymentPage(props) {
       setErrorMessage("Enter the account owner's username.");
       return;
     }
-    const phone = ownerPhone().trim();
+    const phone = normalizeKenyanPhone(`254${ownerPhone()}`);
     if (!skip && !phone) {
-      setErrorMessage("Enter the account owner's phone number.");
+      setErrorMessage("Enter 9 digits after 254, starting with 7 or 1.");
       return;
     }
 
@@ -89,13 +90,18 @@ export default function ProviderPaymentPage(props) {
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
         if (!authData.user) throw new Error("Sign in again before finishing provider signup.");
-        const { data: membership, error: membershipError } = await supabase
+        const { data: memberships, error: membershipError } = await supabase
           .from("provider_members")
           .select("entry_id, provider_id")
-          .eq("member_id", authData.user.id)
-          .maybeSingle();
+          .eq("member_id", authData.user.id);
         if (membershipError) throw membershipError;
-        if (membership?.provider_id && membership.provider_id !== draft.provider_id) {
+        const matchingMembership = (memberships ?? []).find(
+          (membership) => membership.provider_id === draft.provider_id,
+        );
+        const hasAnotherProviderMembership = (memberships ?? []).some(
+          (membership) => membership.provider_id !== draft.provider_id,
+        );
+        if (!matchingMembership && hasAnotherProviderMembership) {
           throw new Error("This account is already linked to another provider workspace.");
         }
         const { count, error } = await supabase
@@ -104,13 +110,13 @@ export default function ProviderPaymentPage(props) {
           .eq("provider_id", draft.provider_id);
         if (error) throw error;
         if (count !== 1) {
-          throw new Error("The provider record could not be found or you do not have permission to save its M-PESA Till number.");
+          throw new Error("The provider record could not be found or you do not have permission to save its M-PESA Paybill details.");
         }
-        if (membership) {
+        if (matchingMembership) {
           const { data: updatedMember, error: memberError } = await supabase
             .from("provider_members")
             .update({ name: username, phone })
-            .eq("entry_id", membership.entry_id)
+            .eq("entry_id", matchingMembership.entry_id)
             .eq("provider_id", draft.provider_id)
             .select("entry_id")
             .maybeSingle();
@@ -155,11 +161,17 @@ export default function ProviderPaymentPage(props) {
       );
       if (!skip) setTillNumber(till);
       setIsSkippedForDevelopment(skip);
-      setIsSaved(true);
+      window.location.assign("/provider/dashboard");
     } catch (error) {
+      const details = [
+        error?.message,
+        error?.details,
+        error?.hint,
+        error?.code ? `Code: ${error.code}` : "",
+      ].filter(Boolean).join(" — ");
       setErrorMessage(
-        error instanceof Error
-          ? `Unable to save your M-PESA details: ${error.message}`
+        details
+          ? `Unable to save your M-PESA details: ${details}`
           : "Unable to save your M-PESA details.",
       );
     } finally {
@@ -169,6 +181,9 @@ export default function ProviderPaymentPage(props) {
 
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
+      <Show when={isSaving()}>
+        <ProviderStepSavingOverlay label="Saving payment details" />
+      </Show>
       <div class="mx-auto max-w-4xl">
         <A
           href="/provider/dashboard"
@@ -287,15 +302,11 @@ export default function ProviderPaymentPage(props) {
                 <p class="mt-1 text-sm leading-6 text-dust-grey-text">Choose the payment code type associated with your business, then enter its number.</p>
                 <label class="mt-5 block max-w-xl">
                   <span class="mb-2 block text-sm font-medium text-dust-grey-100">M-PESA code type <span class="text-rose-600">*</span></span>
-                  <select value={mpesaCodeType()} onChange={(event) => setMpesaCodeType(event.currentTarget.value)} class={inputClass}>
-                    <option value="phone_number">Phone number</option>
-                    <option value="till_number">Till number</option>
-                    <option value="paybill">Paybill</option>
-                  </select>
+                  <div class={`${inputClass} flex items-center`}>Paybill</div>
                 </label>
                 <label class="mt-5 block max-w-xl">
                   <span class="mb-2 block text-sm font-medium text-dust-grey-100">
-                    {mpesaCodeType() === "phone_number" ? "M-PESA phone number" : mpesaCodeType() === "paybill" ? "Paybill number" : "M-PESA Till number"} <span class="text-rose-600">*</span>
+                    Paybill number <span class="text-rose-600">*</span>
                   </span>
                   <input
                     class={inputClass}
@@ -306,7 +317,7 @@ export default function ProviderPaymentPage(props) {
                     pattern="[0-9]+"
                     value={tillNumber()}
                     onInput={(event) => setTillNumber(event.currentTarget.value)}
-                    placeholder={`For example, ${mpesaCodeType() === "phone_number" ? "254712345678" : "123456"}`}
+                    placeholder="For example, 123456"
                     aria-describedby="till-number-help"
                     required
                   />
@@ -341,16 +352,22 @@ export default function ProviderPaymentPage(props) {
                 </label>
                 <label class="mt-5 block max-w-xl">
                   <span class="mb-2 block text-sm font-medium text-dust-grey-100">Owner's phone number <span class="text-rose-600">*</span></span>
-                  <input
-                    class={inputClass}
-                    type="tel"
-                    autocomplete="tel"
-                    maxlength="30"
-                    value={ownerPhone()}
-                    onInput={(event) => setOwnerPhone(event.currentTarget.value)}
-                    placeholder="+254 7XX XXX XXX"
-                    required
-                  />
+                  <div class="flex h-12 max-w-xl overflow-hidden rounded-xl border border-dust-grey-600 bg-dust-grey-900 focus-within:border-fern-500 focus-within:ring-4 focus-within:ring-dry-sage-900">
+                    <span class="inline-flex w-16 shrink-0 items-center justify-center border-r border-dust-grey-600 bg-dust-grey-800 text-sm font-semibold text-dust-grey-200">254</span>
+                    <input
+                      class="min-w-0 flex-1 bg-transparent px-4 text-sm text-dust-grey-100 outline-none"
+                      type="tel"
+                      inputmode="numeric"
+                      autocomplete="tel-national"
+                      maxlength="9"
+                      pattern="[17][0-9]{8}"
+                      value={ownerPhone()}
+                      onInput={(event) => setOwnerPhone(event.currentTarget.value.replace(/\D/g, "").slice(0, 9))}
+                      placeholder="712345678"
+                      required
+                    />
+                  </div>
+                  <p class="mt-1.5 text-xs text-dust-grey-text">Enter 9 digits starting with 7 or 1. Do not enter 254 or a leading 0.</p>
                 </label>
               </section>
 

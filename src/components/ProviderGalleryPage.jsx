@@ -3,6 +3,7 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, ImagePlus, Trash2 } from "lucide-solid";
 import { supabase } from "~/utils/supabase-client";
 import { providerStorageBucket } from "~/utils/provider-storage";
+import ProviderStepSavingOverlay from "~/components/ProviderStepSavingOverlay";
 
 const draftKey = "bakimono-provider-signup-draft";
 const maxPhotos = 5;
@@ -211,7 +212,7 @@ export default function ProviderGalleryPage(props) {
       } else {
         throw new Error("Your provider record could not be found. Go back and save your business details first.");
       }
-      setIsSaved(true);
+      props.onStepChange?.("verification");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -225,6 +226,9 @@ export default function ProviderGalleryPage(props) {
 
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
+      <Show when={isSaving() || isProcessing()}>
+        <ProviderStepSavingOverlay label={isProcessing() ? "Preparing your photos" : "Uploading your gallery"} />
+      </Show>
       <div class="mx-auto max-w-4xl">
         <A
           href="#"

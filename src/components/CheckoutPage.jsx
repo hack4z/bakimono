@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, LockKeyhole, Minus, 
 import BrandBanner from "~/components/BrandBanner";
 import GoogleSignInButton from "~/components/GoogleSignInButton";
 import LoadingState from "~/components/LoadingState";
-import { normalizeKenyanPhone } from "~/utils/supabase";
+import { getSupabaseErrorMessage, normalizeKenyanPhone } from "~/utils/supabase";
 import { supabase } from "~/utils/supabase-client";
 import { getProductCoverUrl } from "~/utils/product-images";
 import { checkProfileCompletion, isProfileComplete } from "~/utils/profile-completion";
@@ -78,7 +78,7 @@ export default function CheckoutPage() {
       }
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to load this product right now.",
+        getSupabaseErrorMessage(error, "Unable to load this product right now."),
       );
     } finally {
       setIsLoading(false);
@@ -139,7 +139,7 @@ export default function CheckoutPage() {
         return;
       }
 
-      setPhoneDigits(savedPhone.slice(3));
+      setPhoneDigits(savedPhone.slice(3, 12));
       setSavedPhoneMessage("Your saved phone number has been added.");
     } catch (error) {
       setSavedPhoneMessage(
@@ -215,7 +215,7 @@ export default function CheckoutPage() {
 
     const normalizedPhone = normalizeKenyanPhone(`254${phoneDigits()}`);
     if (paymentMethod() === "phone" && !normalizedPhone) {
-      setPaymentError("Enter a valid Kenyan mobile number.");
+      setPaymentError("Enter 9 digits after 254, starting with 7 or 1.");
       return;
     }
     const availableQuantity = Number(product().quantity);
@@ -380,7 +380,7 @@ export default function CheckoutPage() {
                 </Show>
               </div>
 
-              <div class="p-5 sm:p-8">
+              <div class="min-w-0 p-4 sm:p-8">
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">
                   Order summary
                 </p>
@@ -495,7 +495,7 @@ export default function CheckoutPage() {
                       </A>
                     </div>
                   }>
-                  <form onSubmit={startPayment} class="mt-6 rounded-2xl border border-dry-sage-700 bg-dry-sage-900 p-4">
+                  <form onSubmit={startPayment} class="mt-6 rounded-2xl border border-dry-sage-700 bg-dry-sage-900 p-4 sm:p-5">
                     <p class="flex items-center gap-2 text-sm font-semibold text-dust-grey-100">
                       <Show when={paymentMethod() === "phone"} fallback={<QrCode size={17} class="text-hunter-green-500" aria-hidden="true" />}>
                         <Smartphone size={17} class="text-hunter-green-500" aria-hidden="true" />
@@ -543,17 +543,18 @@ export default function CheckoutPage() {
                       </button>
                     </div>
                     <Show when={paymentMethod() === "phone"}>
-                      <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+                      <div class="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <label for="mpesa-phone" class="block text-sm font-medium text-dust-grey-100">M-PESA phone number</label>
-                        <button type="button" onClick={useSavedPhone} disabled={isLoadingSavedPhone() || isRequestingPayment() || paymentState() === "pending"} class="inline-flex items-center gap-1.5 text-xs font-semibold text-hunter-green-400 transition hover:text-fern-400 disabled:cursor-not-allowed disabled:opacity-60">
+                        <button type="button" onClick={useSavedPhone} disabled={isLoadingSavedPhone() || isRequestingPayment() || paymentState() === "pending"} class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-dry-sage-600 px-3 text-xs font-semibold text-hunter-green-400 transition hover:bg-dry-sage-800 hover:text-fern-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:border-0 sm:px-0">
                           <Show when={isLoadingSavedPhone()} fallback={<Smartphone size={14} aria-hidden="true" />}><LoaderCircle size={14} class="animate-spin" aria-hidden="true" /></Show>
                           {isLoadingSavedPhone() ? "Loading number…" : "Use my saved number"}
                         </button>
                       </div>
-                      <div class="mt-2 flex w-full">
-                        <span class="inline-flex h-12 items-center rounded-l-xl border border-dust-grey-600 bg-dust-grey-800 px-4 text-sm font-semibold text-dust-grey-200">254</span>
-                        <input id="mpesa-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="9" pattern="[17][0-9]{8}" value={phoneDigits()} onInput={(event) => setPhoneDigits(event.currentTarget.value.replace(/\D/g, "").slice(0, 9))} placeholder="712345678" required disabled={isRequestingPayment() || paymentState() === "pending"} class="h-12 min-w-0 flex-1 rounded-r-xl border border-l-0 border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-400 focus:border-fern-500 focus:ring-2 focus:ring-dry-sage-700 disabled:opacity-60" />
+                      <div class="mt-3 flex h-14 w-full overflow-hidden rounded-xl border border-dust-grey-600 bg-dust-grey-900 focus-within:border-fern-500 focus-within:ring-2 focus-within:ring-dry-sage-700">
+                        <span class="inline-flex w-16 shrink-0 items-center justify-center border-r border-dust-grey-600 bg-dust-grey-800 text-sm font-semibold text-dust-grey-200">254</span>
+                        <input id="mpesa-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="9" pattern="[17][0-9]{8}" value={phoneDigits()} onInput={(event) => setPhoneDigits(event.currentTarget.value.replace(/\D/g, "").slice(0, 9))} placeholder="712345678" required disabled={isRequestingPayment() || paymentState() === "pending"} class="h-14 min-w-0 flex-1 bg-dust-grey-900 px-4 text-base text-dust-grey-100 outline-none placeholder:text-dust-grey-400 disabled:opacity-60" />
                       </div>
+                      <p class="mt-1.5 text-xs text-dust-grey-text">Enter 9 digits starting with 7 or 1. Do not enter 254 or a leading 0.</p>
                       <Show when={savedPhoneMessage()}>
                         <p role="status" class="mt-2 text-xs text-dust-grey-text">{savedPhoneMessage()}</p>
                       </Show>

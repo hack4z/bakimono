@@ -3,6 +3,7 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, BadgeCheck, Check, FileText, Trash2 } from "lucide-solid";
 import { supabase } from "~/utils/supabase-client";
 import { providerStorageBucket } from "~/utils/provider-storage";
+import ProviderStepSavingOverlay from "~/components/ProviderStepSavingOverlay";
 
 const draftKey = "bakimono-provider-signup-draft";
 const legalStorageBucket = "legal";
@@ -554,7 +555,7 @@ export default function ProviderVerificationPage(props) {
         }),
       );
       setIsSkippedForDevelopment(skip);
-      setIsSaved(true);
+      props.onStepChange?.("payment");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -572,6 +573,9 @@ export default function ProviderVerificationPage(props) {
 
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
+      <Show when={isSaving() || isUploading()}>
+        <ProviderStepSavingOverlay label="Saving verification details and uploading documents" />
+      </Show>
       <div class="mx-auto max-w-4xl">
         <A
           href="/provider/dashboard"

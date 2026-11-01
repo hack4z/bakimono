@@ -2,6 +2,14 @@ import { supabase } from "~/utils/supabase-client"
 
 
 export function getSupabaseErrorMessage(error, fallback) {
+  const message = error instanceof Error ? error.message : error?.message;
+  const errorName = error?.name;
+  if (
+    errorName === "AuthSessionMissingError"
+    || /auth session missing/i.test(message ?? "")
+  ) {
+    return "Please sign up to continue.";
+  }
   if (error instanceof Error && error.message) return error.message
   if (error && typeof error === 'object') {
     const details = [

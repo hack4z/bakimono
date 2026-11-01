@@ -3,6 +3,7 @@ import { createSignal, For, Index, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, FileText, Link2, Plus, Trash2 } from "lucide-solid";
 import { supabase } from "~/utils/supabase-client";
 import { providerStorageBucket } from "~/utils/provider-storage";
+import ProviderStepSavingOverlay from "~/components/ProviderStepSavingOverlay";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =
@@ -170,13 +171,15 @@ export default function ProviderSocialLinksPage(props) {
     if (isSubmitting()) return;
     setErrorMessage("");
 
-    const entries = socialLinks().map(({ provider, link }) => ({
-      provider: provider.trim().toLowerCase(),
-      link: link.trim(),
-    }));
+    const entries = socialLinks()
+      .map(({ provider, link }) => ({
+        provider: provider.trim().toLowerCase(),
+        link: link.trim(),
+      }))
+      .filter(({ provider, link }) => provider || link);
 
-    if (entries.length === 0 || entries.some(({ provider, link }) => !provider || !link)) {
-      setErrorMessage("Add at least one complete social profile or website link.");
+    if (entries.some(({ provider, link }) => !provider || !link)) {
+      setErrorMessage("Complete both fields for each link you add, or remove the empty link.");
       return;
     }
     if (entries.some(({ provider }) => !providers.some((option) => option.value === provider))) {
@@ -281,7 +284,7 @@ export default function ProviderSocialLinksPage(props) {
       setPolicies(savedPolicies);
       setSocialLinks(entries);
       setSkippedForDevelopment(false);
-      setSaved(true);
+      props.onStepChange?.("gallery");
     } catch (error) {
       setErrorMessage(
         error instanceof Error || (error && typeof error.message === "string")
@@ -334,7 +337,7 @@ export default function ProviderSocialLinksPage(props) {
       setSocialLinks(entries);
       setPolicies(completePolicies);
       setSkippedForDevelopment(true);
-      setSaved(true);
+      props.onStepChange?.("gallery");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -346,6 +349,9 @@ export default function ProviderSocialLinksPage(props) {
 
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
+      <Show when={isSubmitting()}>
+        <ProviderStepSavingOverlay label="Saving social links and uploading policies" />
+      </Show>
       <div class="mx-auto max-w-4xl">
         <A
           href="#"
@@ -478,8 +484,8 @@ export default function ProviderSocialLinksPage(props) {
                   <Link2 size={19} aria-hidden="true" />
                 </span>
                 <div>
-                  <h2 class="font-serif text-2xl tracking-[-0.035em]">Social profiles and website</h2>
-                  <p class="mt-1 text-sm text-dust-grey-text">Add at least one complete link. Every row needs a provider and a URL.</p>
+                  <h2 class="font-serif text-2xl tracking-[-0.035em]">Social profiles and website <span class="font-sans text-sm font-normal text-dust-grey-text">(optional)</span></h2>
+                  <p class="mt-1 text-sm text-dust-grey-text">Add links if you have them. Leave this section empty to continue.</p>
                 </div>
               </div>
 
@@ -488,11 +494,10 @@ export default function ProviderSocialLinksPage(props) {
                   {(socialLink, index) => (
                     <div class="grid gap-3 rounded-2xl border border-dust-grey-700 bg-dust-grey-800 p-4 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_auto] sm:items-end">
                       <label class="block">
-                        <span class="mb-2 block text-sm font-medium">Provider <span class="text-rose-600">*</span></span>
+                        <span class="mb-2 block text-sm font-medium">Provider</span>
                         <select
                           class={inputClass}
                           value={socialLink().provider}
-                          required
                           onChange={(event) => updateSocialLink(index, "provider", event.currentTarget.value)}
                         >
                           <option value="">Choose a provider</option>
@@ -502,12 +507,11 @@ export default function ProviderSocialLinksPage(props) {
                         </select>
                       </label>
                       <label class="block">
-                        <span class="mb-2 block text-sm font-medium">Link <span class="text-rose-600">*</span></span>
+                        <span class="mb-2 block text-sm font-medium">Link</span>
                         <input
                           class={inputClass}
                           type="url"
                           value={socialLink().link}
-                          required
                           placeholder="https://"
                           autocomplete="url"
                           onInput={(event) => updateSocialLink(index, "link", event.currentTarget.value)}

@@ -129,7 +129,7 @@ export default function DashboardPage() {
       setProfileForm({
         name: profile?.name ?? "",
         birthday: profile?.birthday ?? "",
-        phone: profile?.phone ?? "",
+        phone: String(profile?.phone ?? "").replace(/\D/g, "").replace(/^254/, "").replace(/^0/, "").slice(0, 9),
         city: profile?.city ?? "",
         address: profile?.address ?? "",
       });
@@ -177,7 +177,7 @@ export default function DashboardPage() {
     } catch (error) {
       setProfileStatus("error");
       setFavouritesError(
-        error instanceof Error ? error.message : "Unable to load your favourites right now.",
+        getSupabaseErrorMessage(error, "Unable to load your favourites right now."),
       );
     } finally {
       setFavouritesLoading(false);
@@ -244,9 +244,9 @@ export default function DashboardPage() {
     event.preventDefault();
     const form = profileForm();
     if (!user()) return;
-    const normalizedPhone = normalizeKenyanPhone(form.phone);
+    const normalizedPhone = normalizeKenyanPhone(`254${form.phone}`);
     if (!form.name.trim() || !form.birthday || !normalizedPhone || !form.city.trim() || !form.address.trim()) {
-      setProfileSaveError("Please complete your details and use a valid phone number starting with 254.");
+      setProfileSaveError("Please complete your details and enter the 9 digits after 254.");
       return;
     }
 
@@ -373,7 +373,6 @@ export default function DashboardPage() {
                   <For each={[
                     ["name", "Full name", "text"],
                     ["birthday", "Birthday", "date"],
-                    ["phone", "Phone number (254...)", "tel"],
                     ["city", "City", "text"],
                     ["address", "Street address", "text"],
                   ]}>
@@ -384,21 +383,41 @@ export default function DashboardPage() {
                           name={field[0]}
                           type={field[2]}
                           required
-                          maxlength={field[0] === "phone" ? 12 : undefined}
-                          pattern={field[0] === "phone" ? "254[17][0-9]{8}" : undefined}
-                          inputmode={field[0] === "phone" ? "tel" : undefined}
                           value={profileForm()[field[0]]}
                           onInput={(event) => setProfileForm((current) => ({
                             ...current,
-                            [field[0]]: field[0] === "phone"
-                              ? event.currentTarget.value.replace(/\D/g, "").slice(0, 12)
-                              : event.currentTarget.value,
+                            [field[0]]: event.currentTarget.value,
                           }))}
                           class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-100 outline-none focus:border-fern-500"
                         />
                       </label>
                     )}
                   </For>
+                  <label class="block text-sm font-medium text-dust-grey-200">
+                    Phone number
+                    <div class="mt-2 flex overflow-hidden rounded-xl border border-dust-grey-600 bg-dust-grey-900 focus-within:border-fern-500">
+                      <span class="flex h-12 shrink-0 items-center border-r border-dust-grey-600 px-3 text-sm font-semibold text-dust-grey-100">
+                        254
+                      </span>
+                      <input
+                        name="phone"
+                        type="tel"
+                        required
+                        maxlength="9"
+                        pattern="[17][0-9]{8}"
+                        inputmode="numeric"
+                        autocomplete="tel-national"
+                        placeholder="712345678"
+                        value={profileForm().phone}
+                        onInput={(event) => setProfileForm((current) => ({
+                          ...current,
+                          phone: event.currentTarget.value.replace(/\D/g, "").slice(0, 9),
+                        }))}
+                        class="h-12 min-w-0 flex-1 bg-transparent px-3 text-sm text-dust-grey-100 outline-none"
+                      />
+                    </div>
+                    <p class="mt-1.5 text-xs text-dust-grey-400">Enter 9 digits starting with 7 or 1, without 0 or 254.</p>
+                  </label>
                   <label class="block text-sm font-medium text-dust-grey-200">
                     Avatar image
                     <Show when={avatarPreview()}>

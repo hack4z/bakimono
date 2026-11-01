@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { CalendarDays, Check, Copy, Package, Search, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
+import { getSupabaseErrorMessage } from "~/utils/supabase";
 import { supabase } from "~/utils/supabase-client";
 import { getProductCoverUrl } from "~/utils/product-images";
 
@@ -117,7 +118,7 @@ export default function BookingsPage() {
       setRecords(joinedRecords);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to load your bookings and orders.",
+        getSupabaseErrorMessage(error, "Unable to load your bookings and orders."),
       );
     } finally {
       setIsLoading(false);

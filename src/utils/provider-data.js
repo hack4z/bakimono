@@ -5,12 +5,13 @@ export async function getCurrentProvider() {
   if (authError) throw authError;
   if (!authData.user) throw new Error("Sign in to access your provider workspace.");
 
-  const { data: membership, error: membershipError } = await supabase
+  const { data: memberships, error: membershipError } = await supabase
     .from("provider_members")
     .select("provider_id, member_id, name, role, phone")
     .eq("member_id", authData.user.id)
-    .maybeSingle();
+    .limit(1);
   if (membershipError) throw membershipError;
+  const membership = memberships?.[0];
   if (!membership?.provider_id) {
     throw new Error("Your account is not linked to a provider workspace.");
   }
@@ -43,7 +44,7 @@ export async function getProviderRecords(providerId) {
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase
         .from(table)
-        .select("entry_id, created_at, updated_at, status, client_id, product_id, period, quantity, arrival_time")
+        .select("entry_id, created_at, updated_at, status, is_complete, client_id, product_id, period, quantity, arrival_time")
         .in("product_id", productIds)
         .order("created_at", { ascending: false })
         .range(from, from + 999);

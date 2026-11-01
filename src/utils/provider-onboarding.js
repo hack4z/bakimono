@@ -19,7 +19,17 @@ export function normalizeProviderSignupStep(value) {
 }
 
 export async function getCurrentProviderOnboardingStep() {
-  const { data, error } = await supabase.rpc("provider_exists_for_current_user");
+  let timeoutId;
+  const timeout = new Promise((resolve) => {
+    timeoutId = window.setTimeout(() => resolve({ timedOut: true }), 8000);
+  });
+  const progressRequest = supabase.rpc("provider_exists_for_current_user");
+  const result = await Promise.race([progressRequest, timeout]);
+  window.clearTimeout(timeoutId);
+  if (result.timedOut) {
+    throw new Error("Loading onboarding progress took too long. Please refresh the page.");
+  }
+  const { data, error } = result;
   if (error) throw error;
 
   const rpcResult = Array.isArray(data) ? data[0] : data;

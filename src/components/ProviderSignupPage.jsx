@@ -3,6 +3,7 @@ import { createSignal, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Building2, Check, Clock3, X } from "lucide-solid";
 import { supabase } from "~/utils/supabase-client";
 import { providerStorageBucket } from "~/utils/provider-storage";
+import ProviderStepSavingOverlay from "~/components/ProviderStepSavingOverlay";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =
@@ -267,7 +268,7 @@ export default function ProviderSignupPage(props) {
         JSON.stringify({ ...draft, logo_path: savedLogoPath }),
       );
       setLogoPath(savedLogoPath);
-      setSaved(true);
+      props.onStepChange?.("social");
     } catch (error) {
       if (error && typeof error === "object" && error.code === "42501") {
         setErrorMessage(
@@ -311,6 +312,9 @@ export default function ProviderSignupPage(props) {
 
   return (
     <main class="min-h-screen bg-dust-grey-900 px-4 pb-10 pt-7 text-dust-grey-100 sm:px-7 sm:pt-10 lg:px-10">
+      <Show when={isSubmitting()}>
+        <ProviderStepSavingOverlay label="Saving business details and uploading your logo" />
+      </Show>
       <h1 class="sr-only">Bakimono provider sign up</h1>
       <div class="mx-auto max-w-4xl">
         <A

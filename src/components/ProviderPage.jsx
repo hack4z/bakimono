@@ -8,6 +8,8 @@ import {
   FileCheck2,
   Store,
 } from "lucide-solid";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { supabase } from "~/utils/supabase-client";
 
 const providerFeatures = [
   {
@@ -63,6 +65,22 @@ const imageUrl = (photo) =>
   ?? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=1400&q=85`;
 
 export default function ProviderPage() {
+  const [isAuthenticated, setIsAuthenticated] = createSignal(false);
+
+  onMount(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active) setIsAuthenticated(Boolean(data.session?.user));
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) setIsAuthenticated(Boolean(session?.user));
+    });
+    onCleanup(() => {
+      active = false;
+      subscription.unsubscribe();
+    });
+  });
+
   return (
     <main class="min-h-screen bg-dust-grey-900 text-dust-grey-100">
       <section class="mx-auto grid min-h-140 max-w-360 items-center gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-16">
@@ -79,18 +97,23 @@ export default function ProviderPage() {
             managing bookings, handling payments, and caring for your policies.
           </p>
           <div class="mt-8 flex flex-wrap gap-3">
-            <A
-              href="/provider/signup"
-              class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400"
+            <Show
+              when={isAuthenticated()}
+              fallback={
+                <>
+                  <A href="/provider/signup" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
+                    Join as a provider <ArrowUpRight size={16} aria-hidden="true" />
+                  </A>
+                  <A href="/provider/login" class="inline-flex h-12 items-center justify-center rounded-full border border-dust-grey-600 px-6 text-sm font-semibold text-dust-grey-100 transition hover:border-fern-500 hover:text-hunter-green-500">
+                    Provider sign in
+                  </A>
+                </>
+              }
             >
-              Join as a provider <ArrowUpRight size={16} aria-hidden="true" />
-            </A>
-            <A
-              href="/provider/login"
-              class="inline-flex h-12 items-center justify-center rounded-full border border-dust-grey-600 px-6 text-sm font-semibold text-dust-grey-100 transition hover:border-fern-500 hover:text-hunter-green-500"
-            >
-              Provider sign in
-            </A>
+              <A href="/provider/dashboard" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
+                Provider dashboard <ArrowUpRight size={16} aria-hidden="true" />
+              </A>
+            </Show>
           </div>
           <a href="#provider-tools" class="mt-6 inline-flex items-center gap-1 text-sm font-semibold text-hunter-green-500 hover:underline">
             See what you can do <ArrowRight size={15} aria-hidden="true" />
@@ -175,18 +198,23 @@ export default function ProviderPage() {
               </p>
             </div>
             <div class="relative flex shrink-0 flex-wrap gap-3">
-              <A
-                href="/provider/signup"
-                class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-dry-sage-900 px-6 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800"
+              <Show
+                when={isAuthenticated()}
+                fallback={
+                  <>
+                    <A href="/provider/signup" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-dry-sage-900 px-6 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800">
+                      Join Bakimono <ArrowUpRight size={15} aria-hidden="true" />
+                    </A>
+                    <A href="/provider/login" class="inline-flex h-12 items-center justify-center rounded-full border border-white/50 px-5 text-sm font-semibold text-white transition hover:bg-white/10">
+                      Sign in
+                    </A>
+                  </>
+                }
               >
-                Join Bakimono <ArrowUpRight size={15} aria-hidden="true" />
-              </A>
-              <A
-                href="/provider/login"
-                class="inline-flex h-12 items-center justify-center rounded-full border border-white/50 px-5 text-sm font-semibold text-white transition hover:bg-white/10"
-              >
-                Sign in
-              </A>
+                <A href="/provider/dashboard" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-dry-sage-900 px-6 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800">
+                  Provider dashboard <ArrowUpRight size={15} aria-hidden="true" />
+                </A>
+              </Show>
             </div>
           </div>
         </div>
