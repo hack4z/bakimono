@@ -2,7 +2,7 @@ import { A, useLocation } from "@solidjs/router";
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { ArrowUpRight, Menu } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 export default function Nav() {
   const location = useLocation();

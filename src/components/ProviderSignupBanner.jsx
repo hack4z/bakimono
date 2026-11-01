@@ -1,7 +1,7 @@
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { ArrowRight, RefreshCw, Sparkles } from "lucide-solid";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getCurrentProviderOnboardingStep } from "~/utils/provider-onboarding";
 
 export default function ProviderSignupBanner(props) {

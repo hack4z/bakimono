@@ -1,4 +1,4 @@
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { providerStorageBucket } from "~/utils/provider-storage";
 
 const productImageBucket = providerStorageBucket;

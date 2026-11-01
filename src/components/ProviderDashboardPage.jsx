@@ -5,7 +5,8 @@ import BrandBanner from "~/components/BrandBanner";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 import LoadingState from "~/components/LoadingState";
 import { getCurrentProvider, getProviderRecords } from "~/utils/provider-data";
-import { normalizeKenyanPhone, supabase } from "~/utils/supabase";
+import { normalizeKenyanPhone } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 const statuses = ["pending", "success", "cancelled"];
 const inputClass =

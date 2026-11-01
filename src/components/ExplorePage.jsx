@@ -3,7 +3,7 @@ import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import { ArrowRight, Heart, PackageSearch, Search, Star, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
 import LoadingState from "~/components/LoadingState";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getProductCoverUrl } from "~/utils/product-images";
 
 function formatPrice(price) {

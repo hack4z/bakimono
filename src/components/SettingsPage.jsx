@@ -4,7 +4,8 @@ import { ArrowRight, CircleHelp, Clipboard, Cookie, Download, FileText, LogOut, 
 import BrandBanner from "~/components/BrandBanner";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 import ThemeToggle from "~/components/ThemeToggle";
-import { getSupabaseErrorMessage, getUserAvatarUrl, normalizeKenyanPhone, supabase, uploadAvatar } from "~/utils/supabase";
+import { getSupabaseErrorMessage, getUserAvatarUrl, normalizeKenyanPhone, uploadAvatar } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { checkProfileCompletion, isProfileComplete } from "~/utils/profile-completion";
 import { getCurrentProvider } from "~/utils/provider-data";
 import { providerStorageBucket } from "~/utils/provider-storage";

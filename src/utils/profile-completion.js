@@ -1,4 +1,4 @@
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 export async function checkProfileCompletion() {
   const { data, error } = await supabase.rpc("check_profile_completion");

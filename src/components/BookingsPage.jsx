@@ -2,7 +2,7 @@ import { A } from "@solidjs/router";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { CalendarDays, Check, Copy, Package, Search, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getProductCoverUrl } from "~/utils/product-images";
 
 function formatDate(value) {

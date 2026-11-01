@@ -2,7 +2,8 @@ import { createSignal, onMount, Show } from "solid-js";
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import { ArrowRight, Eye, EyeOff, LoaderCircle, UserPlus } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
-import { getSupabaseErrorMessage, normalizeKenyanPhone, supabase } from "~/utils/supabase";
+import { getSupabaseErrorMessage, normalizeKenyanPhone } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 const inputClass =
   "h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-text focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";

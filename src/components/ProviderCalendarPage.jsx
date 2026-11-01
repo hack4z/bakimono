@@ -17,7 +17,8 @@ import BrandBanner from "~/components/BrandBanner";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 import LoadingState from "~/components/LoadingState";
 import { getCurrentProvider, getProviderRecords } from "~/utils/provider-data";
-import { normalizeKenyanPhone, supabase } from "~/utils/supabase";
+import { normalizeKenyanPhone } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const statuses = ["checkout", "pending", "ongoing", "success", "completed", "cancelled"];

@@ -1,7 +1,7 @@
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { AlertCircle, ArrowDownUp, Check, Copy, ReceiptText, RefreshCw, Search, X } from "lucide-solid";
 import { getCurrentProvider, getProviderProducts } from "~/utils/provider-data";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import LoadingState from "~/components/LoadingState";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 

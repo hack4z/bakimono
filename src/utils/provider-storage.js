@@ -1,4 +1,4 @@
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 export const providerStorageBucket = "providers";
 const signedUrlCache = new Map();

@@ -23,7 +23,7 @@ import {
 } from "lucide-solid";
 import { createSignal, For, onMount, Show } from "solid-js";
 import ThemeToggle from "~/components/ThemeToggle";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 const providerLinks = [
   { href: "/provider/dashboard/orders-bookings", label: "Orders & bookings", Icon: ClipboardList },

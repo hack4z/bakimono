@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { ArrowDownUp, Ban, Check, LoaderCircle, Mail, RefreshCw, Search, UserRound, UserPlus, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getCurrentProvider } from "~/utils/provider-data";
 import { getInvitationError } from "~/utils/provider-invitations";
 

@@ -1,4 +1,4 @@
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 export async function getCurrentProvider() {
   const { data: authData, error: authError } = await supabase.auth.getUser();

@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 export default function GoogleSignInButton(props) {
   const [errorMessage, setErrorMessage] = createSignal("");

@@ -5,7 +5,7 @@ import Nav from "~/components/Nav";
 import AppNavigation from "~/components/AppNavigation";
 import ProviderNavigation from "~/components/ProviderNavigation";
 import { getCurrentProviderOnboardingStep } from "~/utils/provider-onboarding";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import "./app.css";
 
 const BookingsPage = lazy(() => import("~/components/BookingsPage"));

@@ -1,7 +1,7 @@
 import { A } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { ArrowLeft, ArrowRight, Check, ShieldCheck, Smartphone } from "lucide-solid";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 const draftKey = "bakimono-provider-signup-draft";
 const inputClass =

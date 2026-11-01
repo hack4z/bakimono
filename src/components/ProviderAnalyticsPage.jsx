@@ -13,7 +13,8 @@ import {
 import AnalyticsChart from "~/components/AnalyticsChart";
 import LoadingState from "~/components/LoadingState";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
-import { getSupabaseErrorMessage, supabase } from "~/utils/supabase";
+import { getSupabaseErrorMessage } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getCurrentProvider } from "~/utils/provider-data";
 
 const ranges = [

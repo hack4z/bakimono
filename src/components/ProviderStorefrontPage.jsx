@@ -21,7 +21,7 @@ import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 import { getProductCoverUrl } from "~/utils/product-images";
 import { getCurrentProvider, getProviderProducts } from "~/utils/provider-data";
 import { providerStorageBucket } from "~/utils/provider-storage";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 function formatPrice(value) {
   const amount = Number(value ?? 0);

@@ -3,7 +3,7 @@ import { AlertCircle, Check, RefreshCw, Store, Wallet } from "lucide-solid";
 import AnalyticsChart from "~/components/AnalyticsChart";
 import LoadingState from "~/components/LoadingState";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getCurrentProvider, getProviderProducts } from "~/utils/provider-data";
 
 const ranges = [

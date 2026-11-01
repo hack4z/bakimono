@@ -1,7 +1,8 @@
 import { createSignal, Show } from "solid-js";
 import { A, useLocation } from "@solidjs/router";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-solid";
-import { getSupabaseErrorMessage, supabase } from "~/utils/supabase";
+import { getSupabaseErrorMessage } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 export default function PasswordRecoveryPage() {
   const location = useLocation();

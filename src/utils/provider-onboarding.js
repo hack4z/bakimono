@@ -1,4 +1,4 @@
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 export const providerSignupSteps = ["business", "social", "gallery", "verification", "payment"];
 

@@ -14,7 +14,8 @@ import {
   Utensils,
   X,
 } from "lucide-solid";
-import { getSupabaseErrorMessage, getUserAvatarUrl, normalizeKenyanPhone, supabase, uploadAvatar } from "~/utils/supabase";
+import { getSupabaseErrorMessage, getUserAvatarUrl, normalizeKenyanPhone, uploadAvatar } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getProductCoverUrl } from "~/utils/product-images";
 import { checkProfileCompletion, isProfileComplete } from "~/utils/profile-completion";
 

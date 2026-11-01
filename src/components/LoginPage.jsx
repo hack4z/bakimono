@@ -2,7 +2,8 @@ import { createSignal } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { ArrowRight, Eye, EyeOff, MapPin, Sparkles, Star } from "lucide-solid";
 import GoogleSignInButton from "~/components/GoogleSignInButton";
-import { getSupabaseErrorMessage, supabase } from "~/utils/supabase";
+import { getSupabaseErrorMessage } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 export default function LoginPage() {
   const navigate = useNavigate();

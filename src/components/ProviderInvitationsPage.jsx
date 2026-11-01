@@ -4,7 +4,7 @@ import BrandBanner from "~/components/BrandBanner";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 import LoadingState from "~/components/LoadingState";
 import { getCurrentProvider } from "~/utils/provider-data";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 function formatDate(value) {
   const date = new Date(value);

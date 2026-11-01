@@ -5,7 +5,7 @@ import BrandBanner from "~/components/BrandBanner";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
 import { getProductCoverUrl } from "~/utils/product-images";
 import { providerStorageBucket } from "~/utils/provider-storage";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getCurrentProvider } from "~/utils/provider-data";
 
 const inputClass =

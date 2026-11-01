@@ -4,7 +4,8 @@ import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, LockKeyhole, Minus, 
 import BrandBanner from "~/components/BrandBanner";
 import GoogleSignInButton from "~/components/GoogleSignInButton";
 import LoadingState from "~/components/LoadingState";
-import { normalizeKenyanPhone, supabase } from "~/utils/supabase";
+import { normalizeKenyanPhone } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getProductCoverUrl } from "~/utils/product-images";
 import { checkProfileCompletion, isProfileComplete } from "~/utils/profile-completion";
 

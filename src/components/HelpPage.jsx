@@ -3,7 +3,7 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import { ArrowLeft, CircleHelp, LifeBuoy, Send } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
-import { supabase } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 const helpContent = {
   customer: {

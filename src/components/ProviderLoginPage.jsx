@@ -2,7 +2,8 @@ import { createSignal, Show } from "solid-js";
 import { A, useNavigate, useSearchParams } from "@solidjs/router";
 import { ArrowRight, Eye, EyeOff, Store } from "lucide-solid";
 import GoogleSignInButton from "~/components/GoogleSignInButton";
-import { getSupabaseErrorMessage, supabase } from "~/utils/supabase";
+import { getSupabaseErrorMessage } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 
 const inputClass =
   "h-12.5 w-full rounded-xl border border-dust-grey-600 bg-white px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-text focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";

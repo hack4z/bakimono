@@ -1,7 +1,8 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import { AlertCircle, ArrowDownUp, ChevronLeft, ChevronRight, MessageSquareText, RefreshCw, Search, Star, UserRound } from "lucide-solid";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
-import { getUserAvatarUrl, supabase } from "~/utils/supabase";
+import { getUserAvatarUrl } from "~/utils/supabase";
+import { supabase } from "~/utils/supabase-client";
 import { getCurrentProvider } from "~/utils/provider-data";
 
 const pageSize = 20;
