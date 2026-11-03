@@ -319,7 +319,7 @@ export default function HomePage() {
                   </>
                 }
               >
-                <A href="/provider/dashboard" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-hunter-green-400">
+                <A href="/provider/dashboard/orders-bookings" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-hunter-green-400">
                   Provider dashboard <ArrowUpRight size={15} aria-hidden="true" />
                 </A>
               </Show>

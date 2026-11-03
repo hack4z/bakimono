@@ -140,7 +140,7 @@ export default function ProviderPartnerSignupPage() {
       if (invitationError) throw invitationError;
 
       setSuccessMessage("Your partner details have been submitted.");
-      navigate("/provider/dashboard", { replace: true });
+      navigate("/provider/dashboard/orders-bookings", { replace: true });
     } catch (error) {
       setErrorMessage(getSupabaseErrorMessage(error, "Unable to complete partner signup."));
     } finally {

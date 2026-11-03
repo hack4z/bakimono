@@ -132,7 +132,7 @@ export default function ProviderMemberSignupPage() {
         .eq("entry_id", currentInvitation.entry_id);
       if (invitationError) throw invitationError;
 
-      navigate("/provider/dashboard", { replace: true });
+      navigate("/provider/dashboard/orders-bookings", { replace: true });
     } catch (error) {
       setErrorMessage(getSupabaseErrorMessage(error, "Unable to complete member signup."));
     } finally {

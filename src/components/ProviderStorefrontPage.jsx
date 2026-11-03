@@ -83,6 +83,9 @@ export default function ProviderStorefrontPage() {
   const [saveSuccess, setSaveSuccess] = createSignal("");
   const [isGallerySaving, setIsGallerySaving] = createSignal(false);
   const [galleryError, setGalleryError] = createSignal("");
+  const [isLocationSet, setIsLocationSet] = createSignal(false);
+  const [isLocationLoading, setIsLocationLoading] = createSignal(false);
+  const [locationError, setLocationError] = createSignal("");
 
   async function loadStorefront() {
     setIsLoading(true);
@@ -93,7 +96,7 @@ export default function ProviderStorefrontPage() {
       const [{ data, error }, productRows] = await Promise.all([
         supabase
           .from("providers")
-          .select("provider_id, name, address, county, opening_time, closing_time, desciption, phone, email, category, size, social_links")
+          .select("provider_id, name, address, county, opening_time, closing_time, desciption, phone, email, category, size, social_links, latitude, longitude")
           .eq("provider_id", currentProvider.providerId)
           .maybeSingle(),
         getProviderProducts(currentProvider.providerId),
@@ -102,6 +105,20 @@ export default function ProviderStorefrontPage() {
       if (!data) throw new Error("The provider profile is not available to this account.");
 
       setProvider(data);
+      let locationStatus = data.latitude != null && data.longitude != null;
+      try {
+        const { data: locationResult, error: locationError } = await supabase.rpc(
+          "is_location_set",
+          { p_provider_id: currentProvider.providerId },
+        );
+        if (locationError) throw locationError;
+        if (locationResult !== null && locationResult !== undefined) {
+          locationStatus = parseLocationStatus(locationResult);
+        }
+      } catch {
+        // The provider coordinates remain the fallback while the RPC is unavailable.
+      }
+      setIsLocationSet(locationStatus);
       const { data: logoFiles, error: logoError } = await supabase.storage
         .from(providerStorageBucket)
         .list(currentProvider.providerId, { limit: 100 });
@@ -156,6 +173,55 @@ export default function ProviderStorefrontPage() {
   }
 
   onMount(loadStorefront);
+
+  function parseLocationStatus(result) {
+    if (typeof result === "boolean") return result;
+    if (typeof result === "string") return result.toLowerCase() === "true";
+    const row = Array.isArray(result) ? result[0] : result;
+    const value = row?.is_location_set ?? (row && typeof row === "object" ? row[Object.keys(row)[0]] : row);
+    return typeof value === "boolean"
+      ? value
+      : typeof value === "string" && value.toLowerCase() === "true";
+  }
+
+  async function addProviderLocation() {
+    setLocationError("");
+    if (!("geolocation" in navigator)) {
+      setLocationError("Location services are not supported by this browser.");
+      return;
+    }
+
+    setIsLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const { error } = await supabase
+            .from("providers")
+            .update({
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+            })
+            .eq("provider_id", providerId());
+          if (error) throw error;
+          setIsLocationSet(true);
+          setProvider((current) => current
+            ? { ...current, latitude: coords.latitude, longitude: coords.longitude }
+            : current);
+        } catch (error) {
+          setLocationError(error instanceof Error ? error.message : "Unable to save your location.");
+        } finally {
+          setIsLocationLoading(false);
+        }
+      },
+      (positionError) => {
+        setLocationError(positionError.code === 1
+          ? "Location access was denied. Allow location access in your browser and try again."
+          : "We could not determine your location. Check your location settings and try again.");
+        setIsLocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 },
+    );
+  }
 
   async function loadGallery() {
     const currentProviderId = providerId() || (await getCurrentProvider()).providerId;
@@ -304,7 +370,7 @@ export default function ProviderStorefrontPage() {
         .from("providers")
         .update(update)
         .eq("provider_id", providerId)
-        .select("provider_id, name, address, county, opening_time, closing_time, desciption, phone, email, category, size, social_links")
+        .select("provider_id, name, address, county, opening_time, closing_time, desciption, phone, email, category, size, social_links, latitude, longitude")
         .maybeSingle();
       if (error) throw error;
       if (!data) throw new Error("The provider profile could not be updated.");
@@ -328,12 +394,70 @@ export default function ProviderStorefrontPage() {
     return `${formatTime(current.opening_time) || "Open"}${current.opening_time && current.closing_time ? " - " : ""}${formatTime(current.closing_time) || ""}`;
   });
 
+  const providerLocationUrl = createMemo(() => {
+    if (!isLocationSet() || provider()?.latitude == null || provider()?.longitude == null) return "";
+    const latitude = encodeURIComponent(Number(provider().latitude).toFixed(6));
+    const longitude = encodeURIComponent(Number(provider().longitude).toFixed(6));
+    return `https://www.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`;
+  });
+
   return (
-    <main class="min-h-screen bg-dust-grey-900 px-4 pb-12 pt-7 text-dust-grey-100 sm:px-7 sm:pt-9 lg:px-10 lg:pt-10">
+    <main class="min-h-screen bg-dust-grey-900 px-4 pb-12 pt-4 text-dust-grey-100 sm:px-7 sm:pt-9 lg:px-10 lg:pt-10">
       <div class="mx-auto max-w-6xl">
         <ProviderSignupBanner />
 
-        <header class="flex flex-wrap items-end justify-between gap-4">
+        <Show when={!isLoading() && !errorMessage()}>
+          <section class="mt-2 mb-4 overflow-hidden rounded-3xl border border-fern-500/40 bg-fern-500/10 p-4 sm:p-5">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div class="flex min-w-0 items-start gap-3">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-hunter-green-500 text-white">
+                  <MapPin size={19} aria-hidden="true" />
+                </span>
+                <div class="min-w-0 pt-0.5">
+                  <h2 class="font-semibold text-dust-grey-100">
+                    {isLocationSet() ? "Business location" : "Add your business location"}
+                  </h2>
+                  <p class="mt-1 text-sm text-dust-grey-200">
+                    {isLocationSet() && provider()?.latitude != null && provider()?.longitude != null
+                      ? `${Number(provider().latitude).toFixed(6)}, ${Number(provider().longitude).toFixed(6)}`
+                      : "Add your current location so customers can find your storefront more easily."}
+                  </p>
+                  <Show when={locationError()}>
+                    <p role="alert" class="mt-2 text-sm font-medium text-red-600">
+                      {locationError()}
+                    </p>
+                  </Show>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isLocationLoading()}
+                onClick={addProviderLocation}
+                class="inline-flex h-10 w-full shrink-0 items-center justify-center rounded-full bg-hunter-green-500 px-4 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+              >
+                {isLocationLoading()
+                  ? "Getting location..."
+                  : isLocationSet()
+                    ? "Update location"
+                    : "Use my location"}
+              </button>
+            </div>
+            <Show when={providerLocationUrl()}>
+              <div class="mt-4 h-72 overflow-hidden rounded-2xl border border-dust-grey-600 bg-white sm:h-80">
+                <iframe
+                  class="h-full w-full border-0"
+                  title="Provider business location"
+                  src={providerLocationUrl()}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowfullscreen
+                />
+              </div>
+            </Show>
+          </section>
+        </Show>
+
+        <header class="flex flex-wrap items-end justify-between gap-2">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">Customer view</p>
             <h1 class="mt-2 font-serif text-3xl tracking-[-0.04em] sm:text-4xl">Storefront</h1>

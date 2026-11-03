@@ -407,6 +407,7 @@ export default function DashboardPage() {
                         pattern="[17][0-9]{8}"
                         inputmode="numeric"
                         autocomplete="tel-national"
+                        aria-label="Phone number after country code 254"
                         placeholder="712345678"
                         value={profileForm().phone}
                         onInput={(event) => setProfileForm((current) => ({

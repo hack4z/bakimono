@@ -110,7 +110,7 @@ export default function ProviderPage() {
                 </>
               }
             >
-              <A href="/provider/dashboard" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
+              <A href="/provider/dashboard/orders-bookings" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
                 Provider dashboard <ArrowUpRight size={16} aria-hidden="true" />
               </A>
             </Show>
@@ -211,7 +211,7 @@ export default function ProviderPage() {
                   </>
                 }
               >
-                <A href="/provider/dashboard" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-dry-sage-900 px-6 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800">
+                <A href="/provider/dashboard/orders-bookings" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-dry-sage-900 px-6 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800">
                   Provider dashboard <ArrowUpRight size={15} aria-hidden="true" />
                 </A>
               </Show>

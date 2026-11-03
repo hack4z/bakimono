@@ -91,7 +91,7 @@ export default function Nav() {
           <ThemeToggle />
           {isProvider() ? (
             <A
-              href="/provider/dashboard"
+              href="/provider/dashboard/orders-bookings"
               class="hidden items-center gap-1.5 rounded-full bg-hunter-green-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-hunter-green-400 sm:inline-flex"
             >
               Dashboard
@@ -140,7 +140,7 @@ export default function Nav() {
                 {isProviderLanding() ? "For clients" : "For providers"}
               </A>
               {isAuthenticated() && (
-                <A href={isProvider() ? "/provider/dashboard" : "/dashboard"} class="rounded-xl px-3 py-2.5 text-sm font-semibold text-hunter-green-500 hover:bg-dust-grey-800">
+                <A href={isProvider() ? "/provider/dashboard/orders-bookings" : "/dashboard"} class="rounded-xl px-3 py-2.5 text-sm font-semibold text-hunter-green-500 hover:bg-dust-grey-800">
                   Dashboard
                 </A>
               )}

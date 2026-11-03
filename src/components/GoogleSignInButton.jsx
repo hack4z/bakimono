@@ -10,10 +10,15 @@ export default function GoogleSignInButton(props) {
     setIsLoading(true);
 
     try {
+      const isProviderPath = window.location.pathname.startsWith("/provider/");
+      const completionRedirect = isProviderPath
+        ? "/provider/dashboard/orders-bookings"
+        : "/dashboard";
+      const redirectTo = props.redirectTo ?? `${window.location.origin}${completionRedirect}`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: props.redirectTo ?? `${window.location.origin}/dashboard`,
+          redirectTo,
         },
       });
 

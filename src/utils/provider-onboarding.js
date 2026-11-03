@@ -32,32 +32,32 @@ export async function getCurrentProviderOnboardingStep() {
   const { data, error } = result;
   if (error) throw error;
 
-  const rpcResult = Array.isArray(data) ? data[0] : data;
+  let rpcResult = data;
+  if (Array.isArray(data)) {
+    rpcResult = data.length === 1 ? data[0] : data;
+  }
+  if (
+    rpcResult
+    && typeof rpcResult === "object"
+    && !Array.isArray(rpcResult)
+    && "provider_exists_for_current_user" in rpcResult
+  ) {
+    rpcResult = rpcResult.provider_exists_for_current_user;
+  }
   if (!rpcResult || rpcResult === false) {
     return { providerExists: false, nextStep: "business" };
   }
   if (typeof rpcResult === "string") {
-    try {
-      const parsed = JSON.parse(rpcResult);
-      if (parsed && typeof parsed === "object") {
-        const normalizedStep = normalizeProviderSignupStep(
-          parsed.step ?? parsed.current_step ?? parsed.next_step ?? parsed.onboarding_step,
-        );
-        return {
-          providerExists: parsed.provider_exists !== false,
-          nextStep: normalizedStep === "complete" ? null : normalizedStep || "business",
-          complete: normalizedStep === "complete",
-          provider: parsed.provider ?? parsed,
-        };
-      }
-    } catch {
-      const step = normalizeProviderSignupStep(rpcResult);
-      return {
-        providerExists: !["false", "no"].includes(rpcResult.toLowerCase()),
-        nextStep: step === "complete" ? null : step || "business",
-        complete: step === "complete",
-      };
+    const value = rpcResult.trim();
+    if (!value || ["false", "no", "null"].includes(value.toLowerCase())) {
+      return { providerExists: false, nextStep: "business" };
     }
+    const step = normalizeProviderSignupStep(value);
+    return {
+      providerExists: true,
+      nextStep: step === "complete" ? null : step || "business",
+      complete: step === "complete",
+    };
   }
   if (rpcResult && typeof rpcResult === "object") {
     const normalizedStep = normalizeProviderSignupStep(

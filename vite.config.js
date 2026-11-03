@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [solid(), tailwindcss(), 
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: "script-defer",
+      injectRegister: "auto",
       includeAssets: ['apple-touch-icon-180x180.png'],
       manifest: {
         name: 'BAKIMONO',

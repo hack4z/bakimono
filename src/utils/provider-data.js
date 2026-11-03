@@ -1,14 +1,14 @@
 import { supabase } from "~/utils/supabase-client";
 
 export async function getCurrentProvider() {
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await supabase.auth.getSession();
   if (authError) throw authError;
-  if (!authData.user) throw new Error("Sign in to access your provider workspace.");
+  if (!authData.session?.user) throw new Error("Sign in to access your provider workspace.");
 
   const { data: memberships, error: membershipError } = await supabase
     .from("provider_members")
     .select("provider_id, member_id, name, role, phone")
-    .eq("member_id", authData.user.id)
+    .eq("member_id", authData.session.user.id)
     .limit(1);
   if (membershipError) throw membershipError;
   const membership = memberships?.[0];
@@ -16,7 +16,7 @@ export async function getCurrentProvider() {
     throw new Error("Your account is not linked to a provider workspace.");
   }
 
-  return { user: authData.user, membership, providerId: membership.provider_id };
+  return { user: authData.session.user, membership, providerId: membership.provider_id };
 }
 
 export async function getProviderProducts(providerId) {

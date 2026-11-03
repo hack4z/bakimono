@@ -1,6 +1,6 @@
 import { A } from "@solidjs/router";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
-import { CalendarDays, Check, Copy, Package, Search, X } from "lucide-solid";
+import { CalendarDays, Check, Copy, MapPin, Package, Search, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
 import { getSupabaseErrorMessage } from "~/utils/supabase";
 import { supabase } from "~/utils/supabase-client";
@@ -43,6 +43,34 @@ function statusTone(status) {
     return "bg-dry-sage-900 text-dry-sage-200";
   }
   return "bg-pine-teal-900 text-pine-teal-300";
+}
+
+function getProviderLocation(product) {
+  const provider = product?.provider;
+  const hasCoordinates =
+    provider?.latitude != null &&
+    String(provider.latitude).trim() !== "" &&
+    provider?.longitude != null &&
+    String(provider.longitude).trim() !== "";
+  const latitude = Number(provider?.latitude);
+  const longitude = Number(provider?.longitude);
+
+  if (
+    hasCoordinates &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  ) {
+    return `${latitude},${longitude}`;
+  }
+
+  return [provider?.address, provider?.county]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
 export default function BookingsPage() {
@@ -98,7 +126,7 @@ export default function BookingsPage() {
       if (productIds.length) {
         const { data: products, error: productsError } = await supabase
           .from("products")
-          .select("product_id, provider_id, name, description, price, type, capacity")
+          .select("product_id, provider_id, name, description, price, type, capacity, provider:providers!provider_id(provider_id, name, address, county, latitude, longitude)")
           .in("product_id", productIds);
 
         if (productsError) throw productsError;
@@ -448,6 +476,20 @@ export default function BookingsPage() {
                       <p class="mt-5 whitespace-pre-line text-sm leading-6 text-dust-grey-200">
                         {record().product.description}
                       </p>
+                    </Show>
+
+                    <Show when={record().recordType === "booking" && getProviderLocation(record().product)}>
+                      {(destination) => (
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination())}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500"
+                        >
+                          <MapPin size={17} aria-hidden="true" />
+                          Track location
+                        </a>
+                      )}
                     </Show>
 
                     <dl class="mt-6 divide-y divide-dust-grey-700 rounded-2xl border border-dust-grey-600 px-4">

@@ -578,7 +578,7 @@ export default function ProviderVerificationPage(props) {
       </Show>
       <div class="mx-auto max-w-4xl">
         <A
-          href="/provider/dashboard"
+          href="/provider/dashboard/orders-bookings"
           onClick={(event) => {
             event.preventDefault();
             props.onStepChange?.("gallery");

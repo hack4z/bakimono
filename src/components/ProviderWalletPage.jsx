@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
-import { AlertCircle, Check, RefreshCw, Store, Wallet } from "lucide-solid";
+import { AlertCircle, Check, KeyRound, RefreshCw, Store, Wallet, X } from "lucide-solid";
 import AnalyticsChart from "~/components/AnalyticsChart";
 import LoadingState from "~/components/LoadingState";
 import ProviderSignupBanner from "~/components/ProviderSignupBanner";
@@ -99,7 +99,7 @@ function earningsOption(theme, points) {
 export default function ProviderWalletPage() {
   const [range, setRange] = createSignal(30);
   const [providerId, setProviderId] = createSignal("");
-  const [mpesaCodeType, setMpesaCodeType] = createSignal("till_number");
+  const [mpesaCodeType, setMpesaCodeType] = createSignal("till");
   const [tillNumber, setTillNumber] = createSignal("");
   const [earnings, setEarnings] = createSignal([]);
   const [earningsLoading, setEarningsLoading] = createSignal(false);
@@ -109,6 +109,15 @@ export default function ProviderWalletPage() {
   const [errorMessage, setErrorMessage] = createSignal("");
   const [tillError, setTillError] = createSignal("");
   const [earningsError, setEarningsError] = createSignal("");
+  const [consumerKey, setConsumerKey] = createSignal("");
+  const [consumerSecret, setConsumerSecret] = createSignal("");
+  const [passkey, setPasskey] = createSignal("");
+  const [credentialsDrawerOpen, setCredentialsDrawerOpen] = createSignal(false);
+  const [newConsumerKey, setNewConsumerKey] = createSignal("");
+  const [newConsumerSecret, setNewConsumerSecret] = createSignal("");
+  const [newPasskey, setNewPasskey] = createSignal("");
+  const [savingCredentials, setSavingCredentials] = createSignal(false);
+  const [credentialsError, setCredentialsError] = createSignal("");
   let earningsRequest = 0;
 
   async function loadEarnings(productIds, days) {
@@ -153,14 +162,17 @@ export default function ProviderWalletPage() {
       setProviderId(currentProviderId);
       const products = await getProviderProducts(currentProviderId);
       const { data, error } = await supabase
-        .from("providers")
-        .select("mpesa_code_type, mpesa_code")
+        .from("provider_payments")
+        .select("short_code, type, consumer_key, consumer_secret, passkey")
         .eq("provider_id", currentProviderId)
         .maybeSingle();
       if (error) throw error;
-      if (!data) throw new Error("The provider profile is not available to this account.");
-      setTillNumber(data.mpesa_code ?? "");
-      setMpesaCodeType(data.mpesa_code_type ?? "till_number");
+      if (!data) throw new Error("The provider payment configuration is not available to this account.");
+      setTillNumber(data.short_code ?? "");
+      setMpesaCodeType(data.type === "paybill" ? "paybill" : "till");
+      setConsumerKey(data.consumer_key ?? "");
+      setConsumerSecret(data.consumer_secret ?? "");
+      setPasskey(data.passkey ?? "");
       await loadEarnings(products.map((product) => product.product_id), days).catch((error) => {
         setEarningsError(error instanceof Error ? error.message : "Unable to load confirmed payments.");
       });
@@ -183,25 +195,75 @@ export default function ProviderWalletPage() {
     setSuccessMessage("");
     const till = tillNumber().trim();
     if (!/^\d+$/.test(till)) {
-      setTillError(`Enter your M-PESA ${mpesaCodeType() === "phone_number" ? "phone number" : mpesaCodeType() === "paybill" ? "Paybill number" : "Till number"} using digits only.`);
+      setTillError(`Enter your M-PESA ${mpesaCodeType() === "paybill" ? "Paybill number" : "Till number"} using digits only.`);
       return;
     }
 
     setSavingTill(true);
     try {
       const { data, error } = await supabase
-        .from("providers")
-        .update({ mpesa_code_type: mpesaCodeType(), mpesa_code: till, updated_at: new Date().toISOString() })
+        .from("provider_payments")
+        .update({ short_code: till, type: mpesaCodeType(), updated_at: new Date().toISOString() })
         .eq("provider_id", providerId())
         .select("provider_id")
         .maybeSingle();
       if (error) throw error;
-      if (!data) throw new Error("The Till number was not updated. Check provider update permissions.");
-      setSuccessMessage("M-PESA Till number updated.");
+      if (!data) throw new Error("The short_code was not updated. Check provider payment permissions.");
+      setSuccessMessage("M-PESA short_code updated.");
     } catch (error) {
       setTillError(error instanceof Error ? error.message : "Unable to save the M-PESA Till number.");
     } finally {
       setSavingTill(false);
+    }
+  }
+
+  function openCredentialsDrawer() {
+    setNewConsumerKey("");
+    setNewConsumerSecret("");
+    setNewPasskey("");
+    setCredentialsError("");
+    setCredentialsDrawerOpen(true);
+  }
+
+  function closeCredentialsDrawer() {
+    if (savingCredentials()) return;
+    setCredentialsDrawerOpen(false);
+    setCredentialsError("");
+  }
+
+  async function saveCredentials(event) {
+    event.preventDefault();
+    if (savingCredentials()) return;
+    const credentials = {
+      consumer_key: newConsumerKey().trim(),
+      consumer_secret: newConsumerSecret().trim(),
+      passkey: newPasskey().trim(),
+    };
+    if (!credentials.consumer_key || !credentials.consumer_secret || !credentials.passkey) {
+      setCredentialsError("Enter the new consumer key, consumer secret and passkey.");
+      return;
+    }
+
+    setSavingCredentials(true);
+    setCredentialsError("");
+    try {
+      const { data, error } = await supabase
+        .from("provider_payments")
+        .update({ ...credentials, updated_at: new Date().toISOString() })
+        .eq("provider_id", providerId())
+        .select("provider_id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("The Daraja credentials could not be updated.");
+      setConsumerKey(credentials.consumer_key);
+      setConsumerSecret(credentials.consumer_secret);
+      setPasskey(credentials.passkey);
+      setSuccessMessage("Daraja credentials updated.");
+      setCredentialsDrawerOpen(false);
+    } catch (error) {
+      setCredentialsError(error instanceof Error ? error.message : "Unable to update the Daraja credentials.");
+    } finally {
+      setSavingCredentials(false);
     }
   }
 
@@ -304,19 +366,48 @@ export default function ProviderWalletPage() {
                   }}
                   class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none focus:border-hunter-green-500 focus:ring-2 focus:ring-hunter-green-500/15"
                 >
-                  <option value="phone_number">Phone number</option>
-                  <option value="till_number">Till number</option>
+                  <option value="till">Till</option>
                   <option value="paybill">Paybill</option>
                 </select>
               </label>
               <label class="block max-w-xl text-sm font-medium text-dust-grey-200">
-                {mpesaCodeType() === "phone_number" ? "M-PESA phone number" : mpesaCodeType() === "paybill" ? "Paybill number" : "Business Till number"}
+                {mpesaCodeType() === "paybill" ? "Paybill number" : "Business Till number"}
                 <span class="mt-2 flex h-12 items-center gap-3 rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 focus-within:border-hunter-green-500 focus-within:ring-2 focus-within:ring-hunter-green-500/15">
                   <Store size={16} class="shrink-0 text-hunter-green-500" aria-hidden="true" />
                   <input type="text" inputmode="numeric" autocomplete="off" maxlength="20" value={tillNumber()} onInput={(event) => { setTillNumber(event.currentTarget.value); setSuccessMessage(""); setTillError(""); }} placeholder="Enter your Till number" class="min-w-0 flex-1 bg-transparent text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-400" />
                 </span>
                 <span class="mt-1.5 block text-xs text-dust-grey-400">Digits only. This is where your business payments will be directed.</span>
               </label>
+              <div class="mt-7 max-w-xl border-t border-dust-grey-600 pt-6">
+                <div class="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h3 class="font-semibold text-dust-grey-100">Daraja credentials</h3>
+                    <p class="mt-1 text-sm text-dust-grey-400">Current credentials are hidden and cannot be edited here.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openCredentialsDrawer}
+                    class="inline-flex h-10 items-center gap-2 rounded-full border border-hunter-green-500 px-4 text-sm font-semibold text-hunter-green-500 transition hover:bg-hunter-green-500 hover:text-white"
+                  >
+                    <KeyRound size={16} aria-hidden="true" />
+                    Replace credentials
+                  </button>
+                </div>
+                <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label class="block text-sm font-medium text-dust-grey-200">
+                    consumer_key
+                    <input type="password" value={consumerKey()} disabled class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-800 px-4 text-sm text-dust-grey-100 opacity-70" />
+                  </label>
+                  <label class="block text-sm font-medium text-dust-grey-200">
+                    passkey
+                    <input type="password" value={passkey()} disabled class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-800 px-4 text-sm text-dust-grey-100 opacity-70" />
+                  </label>
+                  <label class="block text-sm font-medium text-dust-grey-200 sm:col-span-2">
+                    consumer_secret
+                    <input type="password" value={consumerSecret()} disabled class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-800 px-4 text-sm text-dust-grey-100 opacity-70" />
+                  </label>
+                </div>
+              </div>
               <Show when={tillError()}>
                 <p role="alert" class="mt-4 flex items-start gap-2 rounded-xl border border-rose-400/40 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:bg-rose-950/30 dark:text-rose-200"><AlertCircle size={16} class="mt-0.5 shrink-0" aria-hidden="true" /> {tillError()}</p>
               </Show>
@@ -330,6 +421,66 @@ export default function ProviderWalletPage() {
           </Show>
         </section>
       </div>
+      <Show when={credentialsDrawerOpen()}>
+        <div
+          class="fixed inset-0 z-65"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeCredentialsDrawer();
+          }}
+        >
+          <div class="absolute inset-0 bg-pine-teal-100/55 backdrop-blur-sm" aria-hidden="true" />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="credentials-drawer-title"
+            class="animate-product-drawer-in motion-reduce:animate-none absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-dust-grey-600 bg-dust-grey-900 shadow-2xl"
+          >
+            <div class="flex items-start justify-between gap-4 border-b border-dust-grey-600 p-5 sm:p-7">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-fern-text">Daraja API</p>
+                <h2 id="credentials-drawer-title" class="mt-1 font-serif text-2xl text-dust-grey-100">Replace credentials</h2>
+                <p class="mt-1 text-sm text-dust-grey-text">Enter all three new values to update the provider payment configuration.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCredentialsDrawer}
+                disabled={savingCredentials()}
+                class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dust-grey-600 text-dust-grey-text transition hover:bg-dust-grey-800 disabled:opacity-50"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <form class="flex flex-1 flex-col" onSubmit={saveCredentials}>
+              <div class="flex-1 space-y-5 p-5 sm:p-7">
+                <Show when={credentialsError()}>
+                  <p role="alert" class="rounded-xl border border-rose-400/40 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:bg-rose-950/30 dark:text-rose-200">
+                    {credentialsError()}
+                  </p>
+                </Show>
+                <label class="block text-sm font-medium text-dust-grey-200">
+                  consumer_key
+                  <input type="password" autocomplete="off" required disabled={savingCredentials()} value={newConsumerKey()} onInput={(event) => setNewConsumerKey(event.currentTarget.value)} class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-800 px-4 text-sm text-dust-grey-100 outline-none focus:border-hunter-green-500" />
+                </label>
+                <label class="block text-sm font-medium text-dust-grey-200">
+                  consumer_secret
+                  <input type="password" autocomplete="off" required disabled={savingCredentials()} value={newConsumerSecret()} onInput={(event) => setNewConsumerSecret(event.currentTarget.value)} class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-800 px-4 text-sm text-dust-grey-100 outline-none focus:border-hunter-green-500" />
+                </label>
+                <label class="block text-sm font-medium text-dust-grey-200">
+                  passkey
+                  <input type="password" autocomplete="off" required disabled={savingCredentials()} value={newPasskey()} onInput={(event) => setNewPasskey(event.currentTarget.value)} class="mt-2 h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-800 px-4 text-sm text-dust-grey-100 outline-none focus:border-hunter-green-500" />
+                </label>
+              </div>
+              <div class="flex gap-3 border-t border-dust-grey-600 p-5 sm:p-7">
+                <button type="button" onClick={closeCredentialsDrawer} disabled={savingCredentials()} class="h-11 flex-1 rounded-xl border border-dust-grey-600 px-4 text-sm font-semibold text-dust-grey-100 disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={savingCredentials()} class="h-11 flex-1 rounded-xl bg-hunter-green-500 px-4 text-sm font-semibold text-white disabled:opacity-60">
+                  {savingCredentials() ? "Saving..." : "Save credentials"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </Show>
     </main>
   );
 }

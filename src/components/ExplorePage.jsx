@@ -1,6 +1,6 @@
 import { A, useSearchParams } from "@solidjs/router";
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
-import { ArrowRight, ArrowUpDown, Heart, PackageSearch, Search, SlidersHorizontal, Star, X } from "lucide-solid";
+import { ArrowRight, ArrowUpDown, Crosshair, Heart, MapPin, PackageSearch, Search, SlidersHorizontal, Star, X } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
 import LoadingState from "~/components/LoadingState";
 import { supabase } from "~/utils/supabase-client";
@@ -31,6 +31,10 @@ export default function ExplorePage() {
   const [providerQuery, setProviderQuery] = createSignal(searchParams.provider || "");
   const [sortOpen, setSortOpen] = createSignal(false);
   const [filtersOpen, setFiltersOpen] = createSignal(false);
+  const [userLocation, setUserLocation] = createSignal(null);
+  const [locationRadius, setLocationRadius] = createSignal(50);
+  const [locationLoading, setLocationLoading] = createSignal(false);
+  const [locationError, setLocationError] = createSignal("");
 
   createEffect(() => {
     setActiveType(searchParams.type || "all");
@@ -57,7 +61,7 @@ export default function ExplorePage() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "product_id, provider_id, name, description, price, type, capacity, quantity, rating, created_at, provider:providers!provider_id(provider_id, name)",
+          "product_id, provider_id, name, description, price, type, capacity, quantity, rating, created_at, provider:providers!provider_id(provider_id, name, address, county, latitude, longitude)",
         )
         .order("created_at", { ascending: false });
 
@@ -154,6 +158,47 @@ export default function ExplorePage() {
     updateQuery({ provider: value });
   }
 
+  function distanceInKm(first, second) {
+    const earthRadiusKm = 6371;
+    const toRadians = (degrees) => degrees * Math.PI / 180;
+    const latitudeDelta = toRadians(second.latitude - first.latitude);
+    const longitudeDelta = toRadians(second.longitude - first.longitude);
+    const firstLatitude = toRadians(first.latitude);
+    const secondLatitude = toRadians(second.latitude);
+    const haversine = Math.sin(latitudeDelta / 2) ** 2
+      + Math.cos(firstLatitude) * Math.cos(secondLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  }
+
+  function useCurrentLocation() {
+    setLocationError("");
+    if (!("geolocation" in navigator)) {
+      setLocationError("Location services are not supported by this browser.");
+      return;
+    }
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setUserLocation({ latitude: coords.latitude, longitude: coords.longitude });
+        setLocationLoading(false);
+      },
+      (error) => {
+        setLocationError(error.code === 1
+          ? "Allow location access in your browser to filter nearby products."
+          : "We could not determine your location.");
+        setLocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 },
+    );
+  }
+
+  function providerLocationUrl(product) {
+    const latitude = Number(product.provider?.latitude);
+    const longitude = Number(product.provider?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+    return `https://www.google.com/maps?q=${encodeURIComponent(latitude)},${encodeURIComponent(longitude)}&z=15&output=embed`;
+  }
+
   const filteredProducts = () => {
     const search = query().trim().toLowerCase();
 
@@ -163,6 +208,17 @@ export default function ExplorePage() {
           activeType() === "all" || product.type?.trim() === activeType();
         const matchesProvider =
           selectedProviderIds().size === 0 || selectedProviderIds().has(product.provider_id);
+        const providerLatitude = Number(product.provider?.latitude);
+        const providerLongitude = Number(product.provider?.longitude);
+        const matchesLocation = !userLocation()
+          || (
+            Number.isFinite(providerLatitude)
+            && Number.isFinite(providerLongitude)
+            && distanceInKm(userLocation(), {
+              latitude: providerLatitude,
+              longitude: providerLongitude,
+            }) <= locationRadius()
+          );
         const searchable = [
           product.name,
           product.description,
@@ -174,7 +230,7 @@ export default function ExplorePage() {
           .join(" ")
           .toLowerCase();
 
-        return matchesType && matchesProvider && (!search || searchable.includes(search));
+        return matchesType && matchesProvider && matchesLocation && (!search || searchable.includes(search));
       })
       .sort((first, second) => {
         if (sortBy() === "price-low") return Number(first.price) - Number(second.price);
@@ -270,7 +326,7 @@ export default function ExplorePage() {
               title="Filter products"
               onClick={() => setFiltersOpen((open) => !open)}
               class={`flex size-10 items-center justify-center rounded-full border transition ${
-                filtersOpen() || activeType() !== "all" || selectedProviderIds().size > 0
+                filtersOpen() || activeType() !== "all" || selectedProviderIds().size > 0 || userLocation()
                   ? "border-hunter-green-500 bg-hunter-green-500 text-white"
                   : "border-dust-grey-600 bg-dust-grey-900 text-dust-grey-200 hover:border-fern-500"
               }`}
@@ -316,6 +372,46 @@ export default function ExplorePage() {
                   )}
                 </For>
               </div>
+              <fieldset class="mt-4">
+                <legend class="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-dust-grey-text">Location</legend>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={useCurrentLocation}
+                    disabled={locationLoading()}
+                    class="inline-flex h-10 items-center gap-2 rounded-full border border-hunter-green-500 px-4 text-xs font-semibold text-hunter-green-500 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <Crosshair size={15} aria-hidden="true" />
+                    {locationLoading() ? "Getting location..." : userLocation() ? "Location active" : "Use my location"}
+                  </button>
+                  <Show when={userLocation()}>
+                    <label class="flex h-10 items-center gap-2 rounded-full border border-dust-grey-600 px-3 text-xs text-dust-grey-200">
+                      Within
+                      <select
+                        value={locationRadius()}
+                        onChange={(event) => setLocationRadius(Number(event.currentTarget.value))}
+                        class="bg-transparent font-semibold outline-none"
+                      >
+                        <option value="5">5 km</option>
+                        <option value="10">10 km</option>
+                        <option value="25">25 km</option>
+                        <option value="50">50 km</option>
+                        <option value="100">100 km</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setUserLocation(null)}
+                      class="h-10 rounded-full px-3 text-xs font-semibold text-dust-grey-text hover:text-rose-600"
+                    >
+                      Clear
+                    </button>
+                  </Show>
+                </div>
+                <Show when={locationError()}>
+                  <p role="alert" class="mt-2 text-xs text-rose-600">{locationError()}</p>
+                </Show>
+              </fieldset>
               <Show when={providers().length > 0}>
                 <fieldset class="mt-4">
                   <legend class="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-dust-grey-text">
@@ -600,9 +696,30 @@ export default function ExplorePage() {
                     </div>
                   </div>
 
-                  <p class="mt-5 whitespace-pre-line text-sm leading-6 text-dust-grey-200">
+                  <p class="mt-5 border-b border-dust-grey-600 pb-5 whitespace-pre-line text-sm leading-6 text-dust-grey-200">
                     {product().description || "More details about this product are coming soon."}
                   </p>
+                  <section class="mt-5 rounded-2xl border border-dust-grey-600 bg-dust-grey-800/40 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-[0.12em] text-hunter-green-500">Provider location</p>
+                    <Show when={product().provider?.address || product().provider?.county}>
+                      <div class="mt-3 flex items-start gap-2 text-sm text-dust-grey-200">
+                        <MapPin size={17} class="mt-0.5 shrink-0 text-hunter-green-500" aria-hidden="true" />
+                        <span>{[product().provider?.address, product().provider?.county].filter(Boolean).join(", ")}</span>
+                      </div>
+                    </Show>
+                    <Show when={providerLocationUrl(product())}>
+                      <div class="mt-4 h-64 overflow-hidden rounded-xl border border-dust-grey-600 bg-white sm:h-72">
+                        <iframe
+                          class="h-full w-full border-0"
+                          title={`${product().providerName} location`}
+                          src={providerLocationUrl(product())}
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          allowfullscreen
+                        />
+                      </div>
+                    </Show>
+                  </section>
                   <p class="mt-4 text-sm text-dust-grey-text">
                     {Number(product().quantity) > 0
                       ? `${product().quantity} available`

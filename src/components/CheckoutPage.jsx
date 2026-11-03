@@ -246,10 +246,15 @@ export default function CheckoutPage() {
     const currentAttempt = paymentAttempt() + 1;
     setPaymentAttempt(currentAttempt);
     try {
-      const functionName = paymentMethod() === "qr" ? "mpesa-dynamic-qr" : "mpesa-stk-push";
+      const functionName = paymentMethod() === "qr" ? "mpesa-dynamic-qr" : "mpesa-checkout";
       const requestBody = paymentMethod() === "qr"
         ? { product_id: product().product_id, quantity: selectedQuantity, arrival_time: arrivalTime() }
-        : { product_id: product().product_id, phone: normalizedPhone, quantity: selectedQuantity, arrival_time: arrivalTime() };
+        : {
+            provider_id: product().provider_id,
+            phone: normalizedPhone,
+            amount,
+            product_id: product().product_id,
+          };
       const { data, error } = await supabase.functions.invoke(functionName, { body: requestBody });
       const qrValue = data?.qrCode
         ?? data?.qr_code
@@ -472,7 +477,7 @@ export default function CheckoutPage() {
                       M-PESA checkout is available to signed-in customers. Continue with Google and you’ll return here.
                     </p>
                     <div class="mt-4">
-                      <GoogleSignInButton redirectTo={window.location.href} />
+                      <GoogleSignInButton />
                     </div>
                     <div class="mt-3 flex flex-wrap gap-3 text-sm">
                       <A href="/login" class="font-semibold text-hunter-green-500 hover:text-fern-text">Sign in with email</A>

@@ -305,7 +305,7 @@ export default function SettingsPage() {
       birthday: profile()?.birthday ?? "",
       address: profile()?.address ?? "",
       city: profile()?.city ?? "",
-      phone: profile()?.phone ?? "",
+      phone: String(profile()?.phone ?? "").replace(/\D/g, "").replace(/^254/, "").replace(/^0/, "").slice(0, 9),
       avatar: profile()?.avatar ?? "",
     });
     setIsEditingProfile(true);
@@ -628,17 +628,26 @@ export default function SettingsPage() {
                   </label>
                   <label class="block text-sm font-medium text-dust-grey-200">
                     Phone number
-                    <input
-                      name="phone"
-                      type="tel"
-                      required
-                      inputmode="tel"
-                      maxlength="12"
-                      pattern="254[17][0-9]{8}"
-                      value={editForm().phone}
-                      onInput={(event) => updateEditField("phone", event.currentTarget.value.replace(/\D/g, "").slice(0, 12))}
-                      class="mt-2 h-11 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-3 text-sm text-dust-grey-100 outline-none focus:border-fern-500"
-                    />
+                    <div class="mt-2 flex overflow-hidden rounded-xl border border-dust-grey-600 bg-dust-grey-900 focus-within:border-fern-500">
+                      <span class="flex h-11 shrink-0 items-center border-r border-dust-grey-600 px-3 text-sm font-semibold text-dust-grey-100">
+                        254
+                      </span>
+                      <input
+                        name="phone"
+                        type="tel"
+                        required
+                        maxlength="9"
+                        pattern="[17][0-9]{8}"
+                        inputmode="numeric"
+                        autocomplete="tel-national"
+                        aria-label="Phone number after country code 254"
+                        placeholder="712345678"
+                        value={editForm().phone}
+                        onInput={(event) => updateEditField("phone", event.currentTarget.value.replace(/\D/g, "").slice(0, 9))}
+                        class="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm text-dust-grey-100 outline-none"
+                      />
+                    </div>
+                    <p class="mt-1.5 text-xs text-dust-grey-400">Enter 9 digits starting with 7 or 1, without 0 or 254.</p>
                   </label>
                   <Show when={profileSaveError()}>
                     <p role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

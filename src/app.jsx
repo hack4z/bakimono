@@ -1,60 +1,55 @@
-import { A, Navigate, Route, Router, useLocation } from "@solidjs/router";
-import { createSignal, lazy, onMount, Show, Suspense } from "solid-js";
+import { A, Navigate, Route, Router, useLocation, useNavigate } from "@solidjs/router";
+import { createEffect, createSignal, onMount, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import Nav from "~/components/Nav";
 import AppNavigation from "~/components/AppNavigation";
 import ProviderNavigation from "~/components/ProviderNavigation";
 import ThemeToggle from "~/components/ThemeToggle";
 import InstallAppButton from "~/components/InstallAppButton";
+import LoadingState from "~/components/LoadingState";
 import { getCurrentProviderOnboardingStep } from "~/utils/provider-onboarding";
+import { getCurrentProviderBillingStatus } from "~/utils/provider-billing";
 import { supabase } from "~/utils/supabase-client";
+import BookingsPage from "~/components/BookingsPage";
+import CheckoutPage from "~/components/CheckoutPage";
+import DashboardPage from "~/components/DashboardPage";
+import ExplorePage from "~/components/ExplorePage";
+import HomePage from "~/components/HomePage";
+import HelpPage from "~/components/HelpPage";
+import LoginPage from "~/components/LoginPage";
+import PasswordRecoveryPage from "~/components/PasswordRecoveryPage";
+import NotFoundPage from "~/components/NotFoundPage";
+import ProviderPage from "~/components/ProviderPage";
+import ProviderAccountSignupPage from "~/components/ProviderAccountSignupPage";
+import ProviderLoginPage from "~/components/ProviderLoginPage";
+import ProviderPartnerSignupPage from "~/components/ProviderPartnerSignupPage";
+import ProviderMemberSignupPage from "~/components/ProviderMemberSignupPage";
+import ProviderDashboardPage from "~/components/ProviderDashboardPage";
+import ProviderCheckoutPage from "~/components/ProviderCheckoutPage";
+import ProviderCalendarPage from "~/components/ProviderCalendarPage";
+import ProviderInventoryPage from "~/components/ProviderInventoryPage";
+import ProviderGalleryPage from "~/components/ProviderGalleryPage";
+import ProviderPaymentPage from "~/components/ProviderPaymentPage";
+import ProviderSignupPage from "~/components/ProviderSignupPage";
+import ProviderSocialLinksPage from "~/components/ProviderSocialLinksPage";
+import ProviderVerificationPage from "~/components/ProviderVerificationPage";
+import ProviderPaymentRecordsPage from "~/components/ProviderPaymentRecordsPage";
+import ProviderPartnersPage from "~/components/ProviderPartnersPage";
+import ProviderStaffPage from "~/components/ProviderStaffPage";
+import ProviderInvitationsPage from "~/components/ProviderInvitationsPage";
+import ProviderAnalyticsPage from "~/components/ProviderAnalyticsPage";
+import ProviderReviewsPage from "~/components/ProviderReviewsPage";
+import ProviderStorefrontPage from "~/components/ProviderStorefrontPage";
+import ProviderWalletPage from "~/components/ProviderWalletPage";
+import ProviderWorkspacePage from "~/components/ProviderWorkspacePage";
+import SignupPage from "~/components/SignupPage";
+import SettingsPage, {
+  ProviderSettingsPage,
+  ProviderSettingsPreferencesPage,
+  ProviderSettingsQrCodePage,
+  SettingsInfoPage,
+} from "~/components/SettingsPage";
 import "./app.css";
-
-const BookingsPage = lazy(() => import("~/components/BookingsPage"));
-const CheckoutPage = lazy(() => import("~/components/CheckoutPage"));
-const DashboardPage = lazy(() => import("~/components/DashboardPage"));
-const ExplorePage = lazy(() => import("~/components/ExplorePage"));
-const HomePage = lazy(() => import("~/components/HomePage"));
-const HelpPage = lazy(() => import("~/components/HelpPage"));
-const LoginPage = lazy(() => import("~/components/LoginPage"));
-const PasswordRecoveryPage = lazy(() => import("~/components/PasswordRecoveryPage"));
-const NotFoundPage = lazy(() => import("~/components/NotFoundPage"));
-const ProviderPage = lazy(() => import("~/components/ProviderPage"));
-const ProviderAccountSignupPage = lazy(() => import("~/components/ProviderAccountSignupPage"));
-const ProviderLoginPage = lazy(() => import("~/components/ProviderLoginPage"));
-const ProviderPartnerSignupPage = lazy(() => import("~/components/ProviderPartnerSignupPage"));
-const ProviderMemberSignupPage = lazy(() => import("~/components/ProviderMemberSignupPage"));
-const ProviderDashboardPage = lazy(() => import("~/components/ProviderDashboardPage"));
-const ProviderCalendarPage = lazy(() => import("~/components/ProviderCalendarPage"));
-const ProviderInventoryPage = lazy(() => import("~/components/ProviderInventoryPage"));
-const ProviderGalleryPage = lazy(() => import("~/components/ProviderGalleryPage"));
-const ProviderPaymentPage = lazy(() => import("~/components/ProviderPaymentPage"));
-const ProviderSignupPage = lazy(() => import("~/components/ProviderSignupPage"));
-const ProviderSocialLinksPage = lazy(() => import("~/components/ProviderSocialLinksPage"));
-const ProviderVerificationPage = lazy(() => import("~/components/ProviderVerificationPage"));
-const ProviderPaymentRecordsPage = lazy(() => import("~/components/ProviderPaymentRecordsPage"));
-const ProviderPartnersPage = lazy(() => import("~/components/ProviderPartnersPage"));
-const ProviderStaffPage = lazy(() => import("~/components/ProviderStaffPage"));
-const ProviderInvitationsPage = lazy(() => import("~/components/ProviderInvitationsPage"));
-const ProviderAnalyticsPage = lazy(() => import("~/components/ProviderAnalyticsPage"));
-const ProviderReviewsPage = lazy(() => import("~/components/ProviderReviewsPage"));
-const ProviderStorefrontPage = lazy(() => import("~/components/ProviderStorefrontPage"));
-const ProviderWalletPage = lazy(() => import("~/components/ProviderWalletPage"));
-const ProviderWorkspacePage = lazy(() => import("~/components/ProviderWorkspacePage"));
-const SignupPage = lazy(() => import("~/components/SignupPage"));
-const SettingsPage = lazy(() => import("~/components/SettingsPage"));
-const ProviderSettingsPage = lazy(() =>
-  import("~/components/SettingsPage").then((module) => ({ default: module.ProviderSettingsPage }))
-);
-const ProviderSettingsPreferencesPage = lazy(() =>
-  import("~/components/SettingsPage").then((module) => ({ default: module.ProviderSettingsPreferencesPage }))
-);
-const ProviderSettingsQrCodePage = lazy(() =>
-  import("~/components/SettingsPage").then((module) => ({ default: module.ProviderSettingsQrCodePage }))
-);
-const SettingsInfoPage = lazy(() =>
-  import("~/components/SettingsPage").then((module) => ({ default: module.SettingsInfoPage }))
-);
 
 const guardedProviderPage = (component, options = {}) => () => (
   <ProviderAccessGuard
@@ -99,6 +94,7 @@ export default function App() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/settings/help" component={HelpPage} />
       <Route path="/provider" component={withMainNavigation(ProviderPage)} />
+      <Route path="/provider/checkout" component={ProviderCheckoutPage} />
       <Route path="/provider/dashboard" component={guardedProviderPage(ProviderDashboardPage)} />
       <Route path="/provider/dashboard/orders-bookings" component={guardedProviderPage(ProviderDashboardPage)} />
       <Route path="/provider/dashboard/inventory" component={guardedProviderPage(ProviderInventoryPage)} />
@@ -139,7 +135,7 @@ export default function App() {
       <Route path="/provider/settings/privacy-policy" component={SettingsInfoPage} />
       <Route path="/provider/settings/help" component={() => <HelpPage isProvider />} />
       <Route path="/provider/signup" component={withMainNavigation(ProviderAccountSignupPage)} />
-      <Route path="/provider/signup/*" component={() => <Navigate href="/provider/dashboard" />} />
+      <Route path="/provider/signup/*" component={() => <Navigate href="/provider/dashboard/orders-bookings" />} />
       <Route path="/provider/partner-signup" component={ProviderPartnerSignupPage} />
       <Route path="/provider/member-signup" component={ProviderMemberSignupPage} />
       <Route path="/provider/onboarding/*" component={ProviderOnboardingPage} />
@@ -169,7 +165,7 @@ function ProviderOnboardingPage() {
     try {
       const progress = await getCurrentProviderOnboardingStep();
       if (progress.complete) {
-        window.location.replace("/provider/dashboard");
+        window.location.replace("/provider/dashboard/orders-bookings");
         return;
       }
       setStep(progress.nextStep || "business");
@@ -396,6 +392,69 @@ function ProviderAccessGuard(props) {
 
 function AppShell(props) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [providerBillingState, setProviderBillingState] = createSignal("checking");
+  const [providerBillingError, setProviderBillingError] = createSignal("");
+  const [billingRetry, setBillingRetry] = createSignal(0);
+  let billingCheckVersion = 0;
+  const shouldCheckProviderBilling = () => {
+    const path = location.pathname;
+    return path.startsWith("/provider")
+      && path !== "/provider/login"
+      && !path.startsWith("/provider/signup");
+  };
+
+  createEffect(() => {
+    billingRetry();
+    const path = location.pathname;
+    const checkVersion = ++billingCheckVersion;
+    if (!shouldCheckProviderBilling()) {
+      setProviderBillingState("allowed");
+      setProviderBillingError("");
+      return;
+    }
+
+    setProviderBillingState("checking");
+    setProviderBillingError("");
+    void (async () => {
+      try {
+        const billing = await getCurrentProviderBillingStatus();
+        if (checkVersion !== billingCheckVersion) return;
+        if (!billing) {
+          setProviderBillingState("allowed");
+          return;
+        }
+        if (billing.isBanned) {
+          setProviderBillingState("allowed");
+          return;
+        }
+        if (!billing.onboardingComplete) {
+          if (!path.startsWith("/provider/onboarding")) {
+            navigate("/provider/onboarding", { replace: true });
+            return;
+          }
+          setProviderBillingState("allowed");
+          return;
+        }
+        if (!billing.hasPaid && path !== "/provider/checkout") {
+          navigate("/provider/checkout", { replace: true });
+          return;
+        }
+        if (billing.hasPaid && path === "/provider/checkout") {
+          navigate("/provider/dashboard/orders-bookings", { replace: true });
+          return;
+        }
+        setProviderBillingState("allowed");
+      } catch (error) {
+        if (checkVersion !== billingCheckVersion) return;
+        setProviderBillingError(
+          error instanceof Error ? error.message : "Unable to verify provider payment status.",
+        );
+        setProviderBillingState("error");
+      }
+    })();
+  });
+
   const isProviderSignupPage = () =>
     location.pathname.startsWith("/provider/signup");
   const isProviderAuthPage = () =>
@@ -437,9 +496,29 @@ function AppShell(props) {
         <ProviderNavigation />
       </Show>
       <div class={`${hasAppNavigation() || hasProviderNavigation() ? "bg-dust-grey-800 pt-12 lg:pt-12" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "pb-20 lg:pb-0" : ""} ${hasAppNavigation() || hasProviderNavigation() ? "lg:pl-18" : ""}`}>
-        <Suspense>
-          {props.children}
-        </Suspense>
+        <Show when={!shouldCheckProviderBilling() || providerBillingState() !== "checking"} fallback={
+          <main class="mx-auto min-h-screen max-w-3xl bg-dust-grey-900 px-4 py-16">
+            <LoadingState label="Checking your provider account…" />
+          </main>
+        }>
+          <Show when={providerBillingState() !== "error"} fallback={
+            <main class="min-h-screen bg-dust-grey-900 px-4 py-16 text-center text-sm text-rose-700">
+              <p role="alert">{providerBillingError()}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setProviderBillingState("checking");
+                  setBillingRetry((value) => value + 1);
+                }}
+                class="mt-4 rounded-full bg-hunter-green-500 px-4 py-2 font-semibold text-white"
+              >
+                Try again
+              </button>
+            </main>
+          }>
+            {props.children}
+          </Show>
+        </Show>
       </div>
     </div>
   );

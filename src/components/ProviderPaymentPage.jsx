@@ -10,8 +10,11 @@ const inputClass =
   "h-12 w-full rounded-xl border border-dust-grey-600 bg-dust-grey-900 px-4 text-sm text-dust-grey-100 outline-none transition placeholder:text-dust-grey-text focus:border-fern-500 focus:ring-4 focus:ring-dry-sage-900";
 
 export default function ProviderPaymentPage(props) {
-  const [tillNumber, setTillNumber] = createSignal("");
-  const [mpesaCodeType, setMpesaCodeType] = createSignal("paybill");
+  const [consumerKey, setConsumerKey] = createSignal("");
+  const [consumerSecret, setConsumerSecret] = createSignal("");
+  const [passkey, setPasskey] = createSignal("");
+  const [shortCode, setShortCode] = createSignal("");
+  const [shortCodeType, setShortCodeType] = createSignal("till");
   const [ownerUsername, setOwnerUsername] = createSignal("");
   const [ownerPhone, setOwnerPhone] = createSignal("");
   const [draftAvailable, setDraftAvailable] = createSignal(false);
@@ -29,10 +32,11 @@ export default function ProviderPaymentPage(props) {
       if (!draft || typeof draft !== "object" || Array.isArray(draft)) return;
 
       setDraftAvailable(true);
-      if (draft.payment_method === "mpesa" && typeof draft.till_number === "string") {
-        setTillNumber(draft.till_number);
-      }
-      setMpesaCodeType(draft.mpesa_code_type === "paybill" ? "paybill" : "paybill");
+      setConsumerKey(typeof draft.consumer_key === "string" ? draft.consumer_key : "");
+      setConsumerSecret(typeof draft.consumer_secret === "string" ? draft.consumer_secret : "");
+      setPasskey(typeof draft.passkey === "string" ? draft.passkey : "");
+      setShortCode(typeof draft.short_code === "string" ? draft.short_code : "");
+      setShortCodeType(draft.type === "paybill" ? "paybill" : "till");
       const verification = draft.verification ?? {};
       setOwnerUsername(
         draft.provider_member?.name
@@ -56,9 +60,24 @@ export default function ProviderPaymentPage(props) {
   async function savePaymentDetails(skip = false) {
     if (isSaving()) return;
     setErrorMessage("");
-    const till = tillNumber().trim();
-    if (!skip && !/^\d+$/.test(till)) {
-      setErrorMessage("Enter your M-PESA Paybill number using digits only.");
+    const darajaConsumerKey = consumerKey().trim();
+    const darajaConsumerSecret = consumerSecret().trim();
+    const darajaPasskey = passkey().trim();
+    const darajaShortCode = shortCode().trim();
+    if (!skip && !darajaConsumerKey) {
+      setErrorMessage("Enter your Daraja consumer_key.");
+      return;
+    }
+    if (!skip && !darajaConsumerSecret) {
+      setErrorMessage("Enter your Daraja consumer_secret.");
+      return;
+    }
+    if (!skip && !darajaPasskey) {
+      setErrorMessage("Enter your Daraja passkey.");
+      return;
+    }
+    if (!skip && !/^\d+$/.test(darajaShortCode)) {
+      setErrorMessage("Enter your Daraja short_code using digits only.");
       return;
     }
     const username = ownerUsername().trim();
@@ -106,12 +125,23 @@ export default function ProviderPaymentPage(props) {
         }
         const { count, error } = await supabase
           .from("providers")
-          .update({ mpesa_code_type: mpesaCodeType(), mpesa_code: till, step: "payment" }, { count: "exact" })
+          .update({ step: "payment" }, { count: "exact" })
           .eq("provider_id", draft.provider_id);
         if (error) throw error;
         if (count !== 1) {
-          throw new Error("The provider record could not be found or you do not have permission to save its M-PESA Paybill details.");
+          throw new Error("The provider record could not be found or you do not have permission to save its payment progress.");
         }
+        const { error: paymentError } = await supabase
+          .from("provider_payments")
+          .upsert({
+            provider_id: draft.provider_id,
+            consumer_key: darajaConsumerKey,
+            consumer_secret: darajaConsumerSecret,
+            passkey: darajaPasskey,
+            short_code: darajaShortCode,
+            type: shortCodeType(),
+          }, { onConflict: "provider_id" });
+        if (paymentError) throw paymentError;
         if (matchingMembership) {
           const { data: updatedMember, error: memberError } = await supabase
             .from("provider_members")
@@ -149,8 +179,11 @@ export default function ProviderPaymentPage(props) {
         JSON.stringify({
           ...draft,
           payment_method: "mpesa",
-          mpesa_code_type: mpesaCodeType(),
-          till_number: till,
+          consumer_key: darajaConsumerKey,
+          consumer_secret: darajaConsumerSecret,
+          passkey: darajaPasskey,
+          short_code: darajaShortCode,
+          type: shortCodeType(),
           provider_member: {
             name: username,
             phone,
@@ -159,9 +192,14 @@ export default function ProviderPaymentPage(props) {
           ...(skip ? { developmentBypass: true } : {}),
         }),
       );
-      if (!skip) setTillNumber(till);
+      if (!skip) {
+        setConsumerKey(darajaConsumerKey);
+        setConsumerSecret(darajaConsumerSecret);
+        setPasskey(darajaPasskey);
+        setShortCode(darajaShortCode);
+      }
       setIsSkippedForDevelopment(skip);
-      window.location.assign("/provider/dashboard");
+      window.location.assign("/provider/dashboard/orders-bookings");
     } catch (error) {
       const details = [
         error?.message,
@@ -186,7 +224,7 @@ export default function ProviderPaymentPage(props) {
       </Show>
       <div class="mx-auto max-w-4xl">
         <A
-          href="/provider/dashboard"
+          href="/provider/dashboard/orders-bookings"
           onClick={(event) => {
             event.preventDefault();
             props.onStepChange?.("verification");
@@ -238,11 +276,11 @@ export default function ProviderPaymentPage(props) {
               <p class="mt-2 max-w-2xl text-sm leading-6 text-dust-grey-200">
                 {isSkippedForDevelopment()
                   ? "This step was bypassed for development."
-                : "Your owner username and phone number are saved to the provider team, and your M-PESA details are saved to the provider profile. M-PESA payments are not activated by saving this form."}
+                : "Your owner username and phone number are saved to the provider team, and your Daraja payment details are saved separately for this provider. M-PESA payments are not activated by saving this form."}
               </p>
               <div class="mt-5 flex flex-wrap items-center gap-5">
                 <button type="button" onClick={() => setIsSaved(false)} class="text-sm font-semibold text-hunter-green-500 hover:underline">Edit payment details</button>
-                <A href="/provider/dashboard" class="inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
+                <A href="/provider/dashboard/orders-bookings" class="inline-flex h-11 items-center gap-2 rounded-xl bg-hunter-green-500 px-5 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
                   Finish <Check size={16} aria-hidden="true" />
                 </A>
               </div>
@@ -299,30 +337,54 @@ export default function ProviderPaymentPage(props) {
 
               <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
                 <h2 class="font-serif text-2xl tracking-[-0.035em]">Your M-PESA details</h2>
-                <p class="mt-1 text-sm leading-6 text-dust-grey-text">Choose the payment code type associated with your business, then enter its number.</p>
+                <p class="mt-1 text-sm leading-6 text-dust-grey-text">
+                  Enter the Daraja 3.0 production credentials for your Safaricom M-PESA business account.
+                </p>
+                <div class="mt-5 grid gap-5 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-dust-grey-100">consumer_key <span class="text-rose-600">*</span></span>
+                    <input class={inputClass} type="text" autocomplete="off" maxlength="255" value={consumerKey()} onInput={(event) => setConsumerKey(event.currentTarget.value)} placeholder="Daraja Consumer Key" required />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-dust-grey-100">consumer_secret <span class="text-rose-600">*</span></span>
+                    <input class={inputClass} type="password" autocomplete="off" maxlength="255" value={consumerSecret()} onInput={(event) => setConsumerSecret(event.currentTarget.value)} placeholder="Daraja Consumer Secret" required />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-dust-grey-100">passkey <span class="text-rose-600">*</span></span>
+                    <input class={inputClass} type="password" autocomplete="off" maxlength="255" value={passkey()} onInput={(event) => setPasskey(event.currentTarget.value)} placeholder="Lipa Na M-PESA Online passkey" required />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-dust-grey-100">short_code <span class="text-rose-600">*</span></span>
+                    <input class={inputClass} type="text" inputmode="numeric" autocomplete="off" maxlength="20" pattern="[0-9]+" value={shortCode()} onInput={(event) => setShortCode(event.currentTarget.value)} placeholder="For example, 123456" required />
+                  </label>
+                </div>
                 <label class="mt-5 block max-w-xl">
-                  <span class="mb-2 block text-sm font-medium text-dust-grey-100">M-PESA code type <span class="text-rose-600">*</span></span>
-                  <div class={`${inputClass} flex items-center`}>Paybill</div>
+                  <span class="mb-2 block text-sm font-medium text-dust-grey-100">type <span class="text-rose-600">*</span></span>
+                  <select class={inputClass} value={shortCodeType()} onChange={(event) => setShortCodeType(event.currentTarget.value)} required>
+                    <option value="till">Till</option>
+                    <option value="paybill">Paybill</option>
+                  </select>
                 </label>
-                <label class="mt-5 block max-w-xl">
-                  <span class="mb-2 block text-sm font-medium text-dust-grey-100">
-                    Paybill number <span class="text-rose-600">*</span>
-                  </span>
-                  <input
-                    class={inputClass}
-                    type="text"
-                    inputmode="numeric"
-                    autocomplete="off"
-                    maxlength="30"
-                    pattern="[0-9]+"
-                    value={tillNumber()}
-                    onInput={(event) => setTillNumber(event.currentTarget.value)}
-                    placeholder="For example, 123456"
-                    aria-describedby="till-number-help"
-                    required
-                  />
-                  <span id="till-number-help" class="mt-1.5 block text-xs leading-5 text-dust-grey-text">Digits only. Do not enter your PIN, password, or one-time code.</span>
-                </label>
+                <span class="mt-2 block text-xs leading-5 text-dust-grey-text">Use digits only for short_code. Never enter your M-PESA PIN.</span>
+              </section>
+
+              <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
+                <h2 class="font-serif text-2xl tracking-[-0.035em]">Get Daraja credentials</h2>
+                <p class="mt-1 text-sm leading-6 text-dust-grey-text">
+                  Safaricom publishes the current portal workflow in its official Daraja documentation and developer portal.
+                </p>
+                <ol class="mt-5 list-decimal space-y-3 pl-5 text-sm leading-6 text-dust-grey-200">
+                  <li>Create or sign in to your Daraja developer account at <a href="https://developer.safaricom.co.ke/account/signup" target="_blank" rel="noreferrer" class="font-semibold text-hunter-green-500 underline">Daraja sign-up</a>.</li>
+                  <li>Open <a href="https://developer.safaricom.co.ke/dashboard/myapps" target="_blank" rel="noreferrer" class="font-semibold text-hunter-green-500 underline">My Apps</a>, create a production app, and add the M-PESA APIs your integration uses.</li>
+                  <li>Open the app credentials and copy its production <strong>Consumer Key</strong> and <strong>Consumer Secret</strong>. Keep the secret private.</li>
+                  <li>Use the actual PayBill or Till number assigned to the business as <strong>short_code</strong>. Obtain the matching Lipa Na M-PESA Online <strong>passkey</strong> from Safaricom through the business M-PESA provisioning process.</li>
+                  <li>Test the integration with Safaricom sandbox credentials before submitting go-live approval.</li>
+                  <li>Open <a href="https://developer.safaricom.co.ke/dashboard/golive" target="_blank" rel="noreferrer" class="font-semibold text-hunter-green-500 underline">Go Live</a>, select the app and API, complete Safaricom's application, provide the requested business and integration information, and submit it for review.</li>
+                  <li>After approval, replace sandbox credentials with the production credentials and business provisioning details supplied for your app.</li>
+                </ol>
+                <p class="mt-4 text-xs leading-5 text-dust-grey-text">
+                  Official resources: <a href="https://developer.safaricom.co.ke/" target="_blank" rel="noreferrer" class="underline">Daraja portal</a>, <a href="https://developer.safaricom.co.ke/apis" target="_blank" rel="noreferrer" class="underline">API catalog</a>, and <a href="https://www.safaricom.co.ke/personal/m-pesa/developer-resources" target="_blank" rel="noreferrer" class="underline">Safaricom developer resources</a>.
+                </p>
               </section>
 
               <section class="rounded-7 border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-8">
@@ -372,7 +434,7 @@ export default function ProviderPaymentPage(props) {
               </section>
 
               <p class="text-xs leading-5 text-dust-grey-text">
-                M-PESA details are saved to your provider profile. The owner username and phone number are saved to the provider team record.
+                Daraja credentials are saved in the provider payments record with this provider_id. The owner username and phone number are saved to the provider team record.
               </p>
               <div class="flex justify-end border-t border-dust-grey-700 pt-5">
                 <button type="submit" disabled={isSaving()} class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400 disabled:cursor-wait disabled:opacity-60">

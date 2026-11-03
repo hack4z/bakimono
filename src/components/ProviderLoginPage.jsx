@@ -14,7 +14,7 @@ export default function ProviderLoginPage() {
   const postLoginRedirect = () =>
     typeof searchParams.redirect === "string" && searchParams.redirect.startsWith("/")
       ? searchParams.redirect
-      : "/provider/dashboard";
+      : "/provider/dashboard/orders-bookings";
   const [showPassword, setShowPassword] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
   const [submitting, setSubmitting] = createSignal(false);
