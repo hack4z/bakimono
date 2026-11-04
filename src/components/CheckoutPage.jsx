@@ -252,7 +252,7 @@ export default function CheckoutPage() {
         : {
             provider_id: product().provider_id,
             phone: normalizedPhone,
-            amount,
+            quantity: selectedQuantity,
             product_id: product().product_id,
           };
       const { data, error } = await supabase.functions.invoke(functionName, { body: requestBody });
