@@ -417,8 +417,10 @@ export default function ProviderDashboardPage() {
     setPaymentSubmitting(true);
     setPaymentError("");
     try {
-      const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
+      const { providerId } = await getCurrentProvider();
+      const { data, error } = await supabase.functions.invoke("mpesa-checkout", {
         body: {
+          provider_id: providerId,
           product_id: record.product_id,
           phone,
           quantity,
