@@ -103,9 +103,6 @@ export default function HomePage() {
 
   onMount(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) setIsAuthenticated(Boolean(data.session?.user));
-    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active) setIsAuthenticated(Boolean(session?.user));
     });
@@ -135,14 +132,9 @@ export default function HomePage() {
             <Show
               when={isAuthenticated()}
               fallback={
-                <>
-                  <A href="/signup" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
-                    Join Bakimono <ArrowUpRight size={16} aria-hidden="true" />
-                  </A>
-                  <A href="/login" class="inline-flex h-12 items-center justify-center rounded-full border border-dust-grey-600 px-6 text-sm font-semibold text-dust-grey-100 transition hover:border-fern-500 hover:text-hunter-green-500">
-                    Sign in
-                  </A>
-                </>
+                <A href="/login" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
+                  Sign in <ArrowUpRight size={16} aria-hidden="true" />
+                </A>
               }
             >
               <A href="/dashboard" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white transition hover:bg-hunter-green-400">
@@ -233,14 +225,9 @@ export default function HomePage() {
               <Show
                 when={isAuthenticated()}
                 fallback={
-                  <>
-                    <A href="/signup" class="inline-flex h-11 items-center gap-2 rounded-full bg-dry-sage-900 px-5 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800">
-                      Join Bakimono <ArrowUpRight size={15} aria-hidden="true" />
-                    </A>
-                    <A href="/login" class="inline-flex h-11 items-center rounded-full border border-white/50 px-5 text-sm font-semibold text-white transition hover:bg-white/10">
-                      Already a member? Sign in
-                    </A>
-                  </>
+                  <A href="/login" class="inline-flex h-11 items-center gap-2 rounded-full bg-dry-sage-900 px-5 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800">
+                    Sign in <ArrowUpRight size={15} aria-hidden="true" />
+                  </A>
                 }
               >
                 <A href="/dashboard" class="inline-flex h-11 items-center gap-2 rounded-full bg-dry-sage-900 px-5 text-sm font-semibold text-hunter-green-500 transition hover:bg-dry-sage-800">
@@ -309,14 +296,9 @@ export default function HomePage() {
               <Show
                 when={isAuthenticated()}
                 fallback={
-                  <>
-                    <A href="/provider/signup" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500">
-                      Join as a provider <ArrowUpRight size={15} aria-hidden="true" />
-                    </A>
-                    <A href="/provider/login" class="inline-flex h-12 items-center justify-center rounded-full border border-dry-sage-600 bg-white/60 px-5 text-sm font-semibold text-dust-grey-100 transition hover:border-hunter-green-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500">
-                      Provider sign in
-                    </A>
-                  </>
+                  <A href="/login" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-hunter-green-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hunter-green-500">
+                    Sign in <ArrowUpRight size={15} aria-hidden="true" />
+                  </A>
                 }
               >
                 <A href="/provider/dashboard/orders-bookings" class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-hunter-green-500 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-hunter-green-400">

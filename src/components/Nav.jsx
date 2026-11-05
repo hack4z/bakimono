@@ -9,6 +9,7 @@ export default function Nav() {
   const [isAuthenticated, setIsAuthenticated] = createSignal(false);
   const [isProvider, setIsProvider] = createSignal(false);
   const isProviderLanding = () => location.pathname === "/provider";
+  const isLandingPage = () => location.pathname === "/" || isProviderLanding();
 
   onMount(() => {
     let active = true;
@@ -104,20 +105,29 @@ export default function Nav() {
               Dashboard
             </A>
           ) : (
-            <>
+            isLandingPage() ? (
               <A
-                href="/login"
-                class="hidden text-sm font-medium text-hunter-green-500 transition hover:text-fern-text sm:inline"
-              >
-                Log in
-              </A>
-              <A
-                href="/signup"
+                href={isProviderLanding() ? "/provider/login" : "/login"}
                 class="hidden items-center gap-1.5 rounded-full bg-hunter-green-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-hunter-green-400 sm:inline-flex"
               >
-                Sign up <ArrowUpRight size={15} aria-hidden="true" />
+                Sign in <ArrowUpRight size={15} aria-hidden="true" />
               </A>
-            </>
+            ) : (
+              <>
+                <A
+                  href="/login"
+                  class="hidden text-sm font-medium text-hunter-green-500 transition hover:text-fern-text sm:inline"
+                >
+                  Log in
+                </A>
+                <A
+                  href="/signup"
+                  class="hidden items-center gap-1.5 rounded-full bg-hunter-green-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-hunter-green-400 sm:inline-flex"
+                >
+                  Sign up <ArrowUpRight size={15} aria-hidden="true" />
+                </A>
+              </>
+            )
           )}
           <details class="relative md:hidden">
             <summary
@@ -142,6 +152,11 @@ export default function Nav() {
               {isAuthenticated() && (
                 <A href={isProvider() ? "/provider/dashboard/orders-bookings" : "/dashboard"} class="rounded-xl px-3 py-2.5 text-sm font-semibold text-hunter-green-500 hover:bg-dust-grey-800">
                   Dashboard
+                </A>
+              )}
+              {!isAuthenticated() && isLandingPage() && (
+                <A href={isProviderLanding() ? "/provider/login" : "/login"} class="rounded-xl px-3 py-2.5 text-sm font-semibold text-hunter-green-500 hover:bg-dust-grey-800">
+                  Sign in
                 </A>
               )}
             </div>

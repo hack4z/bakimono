@@ -2,7 +2,7 @@ import { createSignal, onMount, Show } from "solid-js";
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import { ArrowRight, Eye, EyeOff, Handshake, LoaderCircle, Upload } from "lucide-solid";
 import BrandBanner from "~/components/BrandBanner";
-import { getSupabaseErrorMessage } from "~/utils/supabase";
+import { getSupabaseErrorMessage, normalizeKenyanPhone } from "~/utils/supabase";
 import { supabase } from "~/utils/supabase-client";
 
 const inputClass =
@@ -16,16 +16,24 @@ export default function ProviderPartnerSignupPage() {
   const [submitting, setSubmitting] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
   const [successMessage, setSuccessMessage] = createSignal("");
-  const [invitation, setInvitation] = createSignal(null);
+  const [membership, setMembership] = createSignal(null);
   const [fileName, setFileName] = createSignal("");
+  const [phoneDigits, setPhoneDigits] = createSignal("");
+  const [passwordValue, setPasswordValue] = createSignal("");
+  const [confirmPasswordValue, setConfirmPasswordValue] = createSignal("");
   const [showPassword, setShowPassword] = createSignal(false);
   const [showConfirmPassword, setShowConfirmPassword] = createSignal(false);
+  const passwordMatchStatus = () => {
+    if (!confirmPasswordValue()) return "";
+    return passwordValue() === confirmPasswordValue() ? "match" : "mismatch";
+  };
 
   onMount(async () => {
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const { data: authData, error: authError } = await supabase.auth.getSession();
       if (authError) throw authError;
-      if (!authData.user) {
+      const user = authData.session?.user;
+      if (!user) {
         const providerId = String(searchParams.provider_id ?? "").trim();
         const redirect = providerId
           ? `/provider/partner-signup?provider_id=${encodeURIComponent(providerId)}`
@@ -34,26 +42,23 @@ export default function ProviderPartnerSignupPage() {
         return;
       }
 
-      const email = authData.user.email?.trim().toLowerCase();
       const providerId = String(searchParams.provider_id ?? "").trim();
       let query = supabase
-        .from("provider_invitations")
-        .select("entry_id, email, provider_id, role, status, expires_at")
-        .eq("status", "pending")
-        .eq("role", "partner");
-
+        .from("provider_members")
+        .select("entry_id, provider_id, member_id")
+        .eq("member_id", user.id);
       if (providerId) query = query.eq("provider_id", providerId);
-      if (email) query = query.eq("email", email);
-
-      const { data, error } = await query.limit(1).maybeSingle();
+      const { data, error } = await query.limit(providerId ? 1 : 2);
       if (error) throw error;
-      if (!data) throw new Error("No pending partner invitation was found for your account.");
-      if (data.expires_at && new Date(data.expires_at).getTime() <= Date.now()) {
-        throw new Error("This partner invitation has expired.");
+      if (!data?.length) {
+        throw new Error("No provider partner membership was found for your signed-in account.");
       }
-      setInvitation(data);
+      if (!providerId && data.length > 1) {
+        throw new Error("Your account is linked to multiple provider workspaces. Open partner signup from the correct provider workspace.");
+      }
+      setMembership(data[0]);
     } catch (error) {
-      setErrorMessage(getSupabaseErrorMessage(error, "Unable to verify your partner invitation."));
+      setErrorMessage(getSupabaseErrorMessage(error, "Unable to verify your provider partner membership."));
     } finally {
       setLoading(false);
     }
@@ -63,10 +68,11 @@ export default function ProviderPartnerSignupPage() {
     event.preventDefault();
     if (submitting()) return;
 
-    const currentInvitation = invitation();
-    if (!currentInvitation) return;
+    const currentMembership = membership();
+    if (!currentMembership) return;
     const form = new FormData(event.currentTarget);
     const name = String(form.get("legal_name") ?? "").trim();
+    const phone = normalizeKenyanPhone(phoneDigits());
     const idType = String(form.get("id_type") ?? "").trim();
     const idNumber = String(form.get("id_number") ?? "").trim().toUpperCase();
     const idFile = form.get("id_file");
@@ -77,6 +83,10 @@ export default function ProviderPartnerSignupPage() {
     setSuccessMessage("");
     if (!name) {
       setErrorMessage("Enter your legal name.");
+      return;
+    }
+    if (!phone) {
+      setErrorMessage("Enter a valid Kenyan phone number.");
       return;
     }
     if (!idTypes.includes(idType)) {
@@ -106,38 +116,75 @@ export default function ProviderPartnerSignupPage() {
 
     setSubmitting(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const { data: authData, error: authError } = await supabase.auth.getSession();
       if (authError) throw authError;
-      const user = authData.user;
+      const user = authData.session?.user;
       if (!user) throw new Error("Sign in to complete partner signup.");
 
-      const { error: passwordError } = await supabase.auth.updateUser({ password });
+      const { data: existingPartner, error: partnerLookupError } = await supabase
+        .from("provider_members")
+        .select("entry_id")
+        .eq("entry_id", currentMembership.entry_id)
+        .eq("member_id", user.id)
+        .maybeSingle();
+      if (partnerLookupError) throw partnerLookupError;
+      if (!existingPartner) {
+        throw new Error("Your provider partner membership could not be found. Contact the provider owner for help.");
+      }
+
+      const { error: passwordError } = await supabase.auth.updateUser({
+        password,
+        data: { full_name: name, phone },
+      });
       if (passwordError) throw passwordError;
 
       const extension = idFile.name.split(".").pop() ?? "";
       const safeExtension = extension.replace(/[^a-z0-9]/gi, "").toLowerCase();
-      const storagePath = `${currentInvitation.provider_id}/partners/${user.id}/id.${safeExtension || "file"}`;
+      const storagePath = `${currentMembership.provider_id}/partners/${user.id}/id.${safeExtension || "file"}`;
       const { error: uploadError } = await supabase.storage
         .from("legal")
-        .upload(storagePath, idFile, { upsert: false, contentType: idFile.type });
+        .upload(storagePath, idFile, { upsert: true, contentType: idFile.type });
       if (uploadError) throw uploadError;
 
-      const { error: partnerError } = await supabase
+      const partnerDetails = {
+        name,
+        id_type: idType,
+        id_number: idNumber,
+      };
+      const { data: existingPartnerDetails, error: partnerDetailsLookupError } = await supabase
         .from("provider_patners")
-        .insert({
-          provider_id: currentInvitation.provider_id,
-          user_id: user.id,
-          name,
-          id_type: idType,
-          id_number: idNumber,
-        });
+        .select("entry_id")
+        .eq("provider_id", currentMembership.provider_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (partnerDetailsLookupError) throw partnerDetailsLookupError;
+
+      const partnerWrite = existingPartnerDetails
+        ? supabase
+          .from("provider_patners")
+          .update(partnerDetails)
+          .eq("entry_id", existingPartnerDetails.entry_id)
+        : supabase
+          .from("provider_patners")
+          .insert({
+            provider_id: currentMembership.provider_id,
+            user_id: user.id,
+            ...partnerDetails,
+          });
+      const { error: partnerError } = await partnerWrite;
       if (partnerError) throw partnerError;
 
-      const { error: invitationError } = await supabase
-        .from("provider_invitations")
-        .update({ status: "accepted", accepted_at: new Date().toISOString() })
-        .eq("entry_id", currentInvitation.entry_id);
-      if (invitationError) throw invitationError;
+      const { data: updatedMembership, error: membershipError } = await supabase
+        .from("provider_members")
+        .update({ name, phone, status: "active" })
+        .eq("entry_id", currentMembership.entry_id)
+        .eq("member_id", user.id)
+        .select("entry_id")
+        .maybeSingle();
+      if (membershipError) throw membershipError;
+      if (!updatedMembership) {
+        throw new Error("Your name and phone number could not be saved to your provider membership. Check the provider_members update policy.");
+      }
 
       setSuccessMessage("Your partner details have been submitted.");
       navigate("/provider/dashboard/orders-bookings", { replace: true });
@@ -152,9 +199,9 @@ export default function ProviderPartnerSignupPage() {
     <main class="min-h-screen bg-dust-grey-800 px-4 py-10 sm:px-7 sm:py-14 lg:px-10">
       <div class="mx-auto max-w-180">
         <BrandBanner
-          eyebrow="Provider invitation"
+          eyebrow="Provider partner"
           title="Complete partner signup."
-          description="Confirm your identity to join the provider workspace."
+          description="Confirm your identity and contact details for the provider workspace."
         />
         <section class="mt-8 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-7">
           <Show when={!loading()} fallback={<LoaderCircle class="mx-auto animate-spin text-hunter-green-500" />}>
@@ -167,6 +214,28 @@ export default function ProviderPartnerSignupPage() {
                 <label class="block">
                   <span class="mb-2 block text-sm font-semibold text-dust-grey-100">Legal name</span>
                   <input name="legal_name" class={inputClass} autocomplete="name" required placeholder="Enter your full legal name" />
+                </label>
+                <label class="block">
+                  <span class="mb-2 block text-sm font-semibold text-dust-grey-100">Phone number</span>
+                  <span class="flex h-12 w-full overflow-hidden rounded-xl border border-dust-grey-600 bg-dust-grey-900 focus-within:border-fern-500 focus-within:ring-2 focus-within:ring-dry-sage-900">
+                    <span class="inline-flex w-16 shrink-0 items-center justify-center border-r border-dust-grey-600 bg-dust-grey-800 text-sm font-semibold text-dust-grey-200">
+                      254
+                    </span>
+                    <input
+                      name="phone"
+                      type="tel"
+                      inputmode="numeric"
+                      autocomplete="tel-national"
+                      maxlength="9"
+                      pattern="[17][0-9]{8}"
+                      value={phoneDigits()}
+                      onInput={(event) => setPhoneDigits(event.currentTarget.value.replace(/\D/g, "").slice(0, 9))}
+                      aria-label="Phone number after country code 254"
+                      class="h-12 min-w-0 flex-1 bg-transparent px-4 text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text"
+                      placeholder="712345678"
+                      required
+                    />
+                  </span>
                 </label>
                 <label class="block">
                   <span class="mb-2 block text-sm font-semibold text-dust-grey-100">ID type</span>
@@ -190,6 +259,7 @@ export default function ProviderPartnerSignupPage() {
                       minlength="8"
                       required
                       placeholder="Create a password"
+                      onInput={(event) => setPasswordValue(event.currentTarget.value)}
                     />
                     <button
                       type="button"
@@ -209,11 +279,15 @@ export default function ProviderPartnerSignupPage() {
                     <input
                       name="confirm_password"
                       type={showConfirmPassword() ? "text" : "password"}
-                      class={`${inputClass} pr-12`}
                       autocomplete="new-password"
                       minlength="8"
                       required
                       placeholder="Confirm your password"
+                      aria-invalid={passwordMatchStatus() === "mismatch" ? "true" : undefined}
+                      class={passwordMatchStatus() === "mismatch"
+                        ? `${inputClass} border-rose-500 pr-12`
+                        : `${inputClass} pr-12`}
+                      onInput={(event) => setConfirmPasswordValue(event.currentTarget.value)}
                     />
                     <button
                       type="button"
@@ -226,6 +300,14 @@ export default function ProviderPartnerSignupPage() {
                       </Show>
                     </button>
                   </span>
+                  <Show when={passwordMatchStatus()}>
+                    <span
+                      role="status"
+                      class={`mt-1.5 block text-xs ${passwordMatchStatus() === "match" ? "text-fern-text" : "text-rose-600"}`}
+                    >
+                      {passwordMatchStatus() === "match" ? "Passwords match." : "Passwords do not match."}
+                    </span>
+                  </Show>
                 </label>
                 <label class="block rounded-xl border border-dashed border-dust-grey-500 bg-dust-grey-800 p-4 cursor-pointer">
                   <span class="flex items-center gap-3">

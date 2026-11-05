@@ -1,14 +1,15 @@
 import { supabase } from "~/utils/supabase-client";
 
 export async function getCurrentProviderWorkspace() {
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await supabase.auth.getSession();
   if (authError) throw authError;
-  if (!authData.user) return null;
+  const user = authData.session?.user;
+  if (!user) return null;
 
   const { data: memberships, error: membershipError } = await supabase
     .from("provider_members")
     .select("provider_id, status")
-    .eq("member_id", authData.user.id);
+    .eq("member_id", user.id);
   if (membershipError) throw membershipError;
 
   const membership = (memberships ?? []).find(

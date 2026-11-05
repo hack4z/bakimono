@@ -202,17 +202,10 @@ function ProviderAccessGuard(props) {
   onMount(async () => {
     try {
       const { data: authData, error: authError } = await withTimeout(
-        supabase.auth.getUser(),
+        supabase.auth.getSession(),
         "Checking your login took too long. Please refresh the page.",
       );
-      if (authError) {
-        setState("unauthenticated");
-        queueMicrotask(() => {
-          window.location.replace("/provider/login");
-        });
-        return;
-      }
-      if (!authData.user) {
+      if (authError || !authData.session?.user) {
         setState("unauthenticated");
         queueMicrotask(() => {
           window.location.replace("/provider/login");
@@ -223,7 +216,7 @@ function ProviderAccessGuard(props) {
       const { data: memberships, error: membershipError } = await withTimeout(supabase
         .from("provider_members")
         .select("provider_id, status, role")
-        .eq("member_id", authData.user.id), "Loading your provider membership took too long. Please refresh the page.");
+        .eq("member_id", authData.session.user.id), "Loading your provider membership took too long. Please refresh the page.");
       if (membershipError) throw membershipError;
       const membership = (memberships ?? []).find((item) => item.status?.toLowerCase() !== "banned")
         ?? memberships?.[0];
@@ -397,11 +390,16 @@ function AppShell(props) {
   const [providerBillingError, setProviderBillingError] = createSignal("");
   const [billingRetry, setBillingRetry] = createSignal(0);
   let billingCheckVersion = 0;
+  const isProviderSignupPage = () =>
+    location.pathname.startsWith("/provider/signup");
+  const isProviderAuthPage = () =>
+    isProviderSignupPage()
+    || location.pathname === "/provider/login"
+    || location.pathname === "/provider/partner-signup"
+    || location.pathname === "/provider/member-signup";
   const shouldCheckProviderBilling = () => {
     const path = location.pathname;
-    return path.startsWith("/provider")
-      && path !== "/provider/login"
-      && !path.startsWith("/provider/signup");
+    return path.startsWith("/provider/") && !isProviderAuthPage();
   };
 
   createEffect(() => {
@@ -455,13 +453,6 @@ function AppShell(props) {
     })();
   });
 
-  const isProviderSignupPage = () =>
-    location.pathname.startsWith("/provider/signup");
-  const isProviderAuthPage = () =>
-    isProviderSignupPage()
-    || location.pathname === "/provider/login"
-    || location.pathname === "/provider/partner-signup"
-    || location.pathname === "/provider/member-signup";
   const isProviderSubPage = () =>
     location.pathname.startsWith("/provider/")
     && !isProviderAuthPage()

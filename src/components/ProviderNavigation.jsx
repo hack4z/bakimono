@@ -106,12 +106,14 @@ export default function ProviderNavigation() {
 
   onMount(async () => {
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData.user) return;
+      const { data: authData, error: authError } = await supabase.auth.getSession();
+      if (authError) throw authError;
+      const user = authData.session?.user;
+      if (!user) return;
       const { data: memberships, error } = await supabase
         .from("provider_members")
         .select("role")
-        .eq("member_id", authData.user.id);
+        .eq("member_id", user.id);
       if (error) return;
       const membership = memberships?.[0];
       const role = membership?.role?.trim().toLowerCase();

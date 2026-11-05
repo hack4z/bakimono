@@ -632,9 +632,6 @@ export default function ProviderSocialLinksPage(props) {
                     </For>
                   </div>
                 </Show>
-                <p class="mt-3 text-xs leading-5 text-dust-grey-text">
-                  Accepts PDF, TXT, or DOCX files up to 512 KB each (1 MB total). Files upload as increasing numbers, such as providers/&lt;provider_id&gt;/policies/1.pdf.
-                </p>
               </section>
 
               <div class="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-dust-grey-700 pt-5 sm:flex-row sm:items-center">

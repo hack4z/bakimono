@@ -14,15 +14,23 @@ export default function ProviderMemberSignupPage() {
   const [loading, setLoading] = createSignal(true);
   const [submitting, setSubmitting] = createSignal(false);
   const [errorMessage, setErrorMessage] = createSignal("");
-  const [invitation, setInvitation] = createSignal(null);
+  const [membership, setMembership] = createSignal(null);
+  const [phoneDigits, setPhoneDigits] = createSignal("");
+  const [passwordValue, setPasswordValue] = createSignal("");
+  const [confirmPasswordValue, setConfirmPasswordValue] = createSignal("");
   const [showPassword, setShowPassword] = createSignal(false);
   const [showConfirmPassword, setShowConfirmPassword] = createSignal(false);
+  const passwordMatchStatus = () => {
+    if (!confirmPasswordValue()) return "";
+    return passwordValue() === confirmPasswordValue() ? "match" : "mismatch";
+  };
 
   onMount(async () => {
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const { data: authData, error: authError } = await supabase.auth.getSession();
       if (authError) throw authError;
-      if (!authData.user) {
+      const user = authData.session?.user;
+      if (!user) {
         const providerId = String(searchParams.provider_id ?? "").trim();
         const redirect = providerId
           ? `/provider/member-signup?provider_id=${encodeURIComponent(providerId)}`
@@ -31,25 +39,24 @@ export default function ProviderMemberSignupPage() {
         return;
       }
 
-      const email = authData.user.email?.trim().toLowerCase();
       const providerId = String(searchParams.provider_id ?? "").trim();
       let query = supabase
-        .from("provider_invitations")
-        .select("entry_id, email, provider_id, role, status, expires_at")
-        .eq("status", "pending")
-        .neq("role", "partner");
+        .from("provider_members")
+        .select("entry_id, provider_id, role, status")
+        .eq("member_id", user.id);
       if (providerId) query = query.eq("provider_id", providerId);
-      if (email) query = query.eq("email", email);
 
-      const { data, error } = await query.limit(1).maybeSingle();
+      const { data, error } = await query.limit(providerId ? 1 : 2);
       if (error) throw error;
-      if (!data) throw new Error("No pending provider member invitation was found for your account.");
-      if (data.expires_at && new Date(data.expires_at).getTime() <= Date.now()) {
-        throw new Error("This provider member invitation has expired.");
+      if (!data?.length) {
+        throw new Error("No provider membership was found for your signed-in account.");
       }
-      setInvitation(data);
+      if (!providerId && data.length > 1) {
+        throw new Error("Your account is linked to multiple provider workspaces. Open member signup from the correct provider workspace.");
+      }
+      setMembership(data[0]);
     } catch (error) {
-      setErrorMessage(getSupabaseErrorMessage(error, "Unable to verify your member invitation."));
+      setErrorMessage(getSupabaseErrorMessage(error, "Unable to verify your provider membership."));
     } finally {
       setLoading(false);
     }
@@ -59,11 +66,11 @@ export default function ProviderMemberSignupPage() {
     event.preventDefault();
     if (submitting()) return;
 
-    const currentInvitation = invitation();
-    if (!currentInvitation) return;
+    const currentMembership = membership();
+    if (!currentMembership) return;
     const form = new FormData(event.currentTarget);
     const name = String(form.get("name") ?? "").trim();
-    const phone = normalizeKenyanPhone(form.get("phone"));
+    const phone = normalizeKenyanPhone(phoneDigits());
     const password = String(form.get("password") ?? "");
     const confirmPassword = String(form.get("confirm_password") ?? "");
 
@@ -87,10 +94,21 @@ export default function ProviderMemberSignupPage() {
 
     setSubmitting(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const { data: authData, error: authError } = await supabase.auth.getSession();
       if (authError) throw authError;
-      const user = authData.user;
+      const user = authData.session?.user;
       if (!user) throw new Error("Sign in to complete member signup.");
+
+      const { data: existingMembership, error: membershipLookupError } = await supabase
+        .from("provider_members")
+        .select("entry_id")
+        .eq("entry_id", currentMembership.entry_id)
+        .eq("member_id", user.id)
+        .maybeSingle();
+      if (membershipLookupError) throw membershipLookupError;
+      if (!existingMembership) {
+        throw new Error("Your provider membership could not be found. Contact the provider owner for help.");
+      }
 
       const { error: passwordError } = await supabase.auth.updateUser({
         password,
@@ -98,39 +116,17 @@ export default function ProviderMemberSignupPage() {
       });
       if (passwordError) throw passwordError;
 
-      const { data: membership, error: membershipLookupError } = await supabase
+      const { data: updatedMembership, error: membershipError } = await supabase
         .from("provider_members")
-        .select("entry_id")
-        .eq("provider_id", currentInvitation.provider_id)
+        .update({ name, phone, status: "active" })
+        .eq("entry_id", currentMembership.entry_id)
         .eq("member_id", user.id)
+        .select("entry_id")
         .maybeSingle();
-      if (membershipLookupError) throw membershipLookupError;
-
-      if (membership) {
-        const { error: membershipError } = await supabase
-          .from("provider_members")
-          .update({ name, phone, status: "active" })
-          .eq("entry_id", membership.entry_id);
-        if (membershipError) throw membershipError;
-      } else {
-        const { error: membershipError } = await supabase
-          .from("provider_members")
-          .insert({
-            provider_id: currentInvitation.provider_id,
-            member_id: user.id,
-            name,
-            phone,
-            role: currentInvitation.role,
-            status: "active",
-          });
-        if (membershipError) throw membershipError;
+      if (membershipError) throw membershipError;
+      if (!updatedMembership) {
+        throw new Error("Your name and phone number could not be saved to your provider membership. Check the provider_members update policy.");
       }
-
-      const { error: invitationError } = await supabase
-        .from("provider_invitations")
-        .update({ status: "accepted", accepted_at: new Date().toISOString() })
-        .eq("entry_id", currentInvitation.entry_id);
-      if (invitationError) throw invitationError;
 
       navigate("/provider/dashboard/orders-bookings", { replace: true });
     } catch (error) {
@@ -144,9 +140,9 @@ export default function ProviderMemberSignupPage() {
     <main class="min-h-screen bg-dust-grey-800 px-4 py-10 sm:px-7 sm:py-14 lg:px-10">
       <div class="mx-auto max-w-180">
         <BrandBanner
-          eyebrow="Provider invitation"
+          eyebrow="Provider membership"
           title="Complete member signup."
-          description="Set up your account to join the provider workspace."
+          description="Set up your account for the provider workspace linked to your account."
         />
         <section class="mt-8 rounded-3xl border border-dust-grey-600 bg-dust-grey-900 p-5 sm:p-7">
           <Show when={!loading()} fallback={<LoaderCircle class="mx-auto animate-spin text-hunter-green-500" />}>
@@ -162,10 +158,41 @@ export default function ProviderMemberSignupPage() {
                 </label>
                 <label class="block">
                   <span class="mb-2 block text-sm font-semibold text-dust-grey-100">Phone number</span>
-                  <input name="phone" type="tel" class={inputClass} autocomplete="tel" required placeholder="0712 345 678" />
+                  <span class="flex h-12 w-full overflow-hidden rounded-xl border border-dust-grey-600 bg-dust-grey-900 focus-within:border-fern-500 focus-within:ring-2 focus-within:ring-dry-sage-900">
+                    <span class="inline-flex w-16 shrink-0 items-center justify-center border-r border-dust-grey-600 bg-dust-grey-800 text-sm font-semibold text-dust-grey-200">
+                      254
+                    </span>
+                    <input
+                      name="phone"
+                      type="tel"
+                      inputmode="numeric"
+                      autocomplete="tel-national"
+                      maxlength="9"
+                      pattern="[17][0-9]{8}"
+                      value={phoneDigits()}
+                      onInput={(event) => setPhoneDigits(event.currentTarget.value.replace(/\D/g, "").slice(0, 9))}
+                      aria-label="Phone number after country code 254"
+                      class="h-12 min-w-0 flex-1 bg-transparent px-4 text-sm text-dust-grey-100 outline-none placeholder:text-dust-grey-text"
+                      placeholder="712345678"
+                      required
+                    />
+                  </span>
                 </label>
-                <PasswordField label="Password" name="password" visible={showPassword()} onToggle={() => setShowPassword((visible) => !visible)} />
-                <PasswordField label="Confirm password" name="confirm_password" visible={showConfirmPassword()} onToggle={() => setShowConfirmPassword((visible) => !visible)} />
+                <PasswordField
+                  label="Password"
+                  name="password"
+                  visible={showPassword()}
+                  onInput={(value) => setPasswordValue(value)}
+                  onToggle={() => setShowPassword((visible) => !visible)}
+                />
+                <PasswordField
+                  label="Confirm password"
+                  name="confirm_password"
+                  visible={showConfirmPassword()}
+                  onInput={(value) => setConfirmPasswordValue(value)}
+                  onToggle={() => setShowConfirmPassword((visible) => !visible)}
+                  matchStatus={passwordMatchStatus}
+                />
                 <button
                   type="submit"
                   disabled={submitting()}
@@ -192,11 +219,15 @@ function PasswordField(props) {
         <input
           name={props.name}
           type={props.visible ? "text" : "password"}
-          class={`${inputClass} pr-12`}
           autocomplete="new-password"
           minlength="8"
           required
           placeholder={props.label}
+          aria-invalid={props.matchStatus?.() === "mismatch" ? "true" : undefined}
+          class={props.matchStatus?.() === "mismatch"
+            ? `${inputClass} border-rose-500 pr-12`
+            : `${inputClass} pr-12`}
+          onInput={(event) => props.onInput(event.currentTarget.value)}
         />
         <button
           type="button"
@@ -209,6 +240,16 @@ function PasswordField(props) {
           </Show>
         </button>
       </span>
+      <Show when={props.matchStatus?.()}>
+        {(status) => (
+          <span
+            role="status"
+            class={`mt-1.5 block text-xs ${status() === "match" ? "text-fern-text" : "text-rose-600"}`}
+          >
+            {status() === "match" ? "Passwords match." : "Passwords do not match."}
+          </span>
+        )}
+      </Show>
     </label>
   );
 }
